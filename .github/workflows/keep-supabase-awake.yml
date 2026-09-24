@@ -1,0 +1,43 @@
+# Free Supabase projects pause after about a week without database activity.
+# This calls the tiny public.ping() RPC three times a day to keep the project awake.
+#
+# It sends no email of its own. GitHub notifies only according to your notification
+# settings, which by default means a failed run (for example, if the project got paused).
+
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: "17 */8 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write # lets the last step re-enable this workflow
+
+concurrency:
+  group: keep-supabase-awake
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call public.ping()
+        env:
+          SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          curl --fail-with-body -sS --max-time 30 \
+            --retry 5 --retry-delay 20 --retry-all-errors \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/ping" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+
+      # GitHub disables schedules in public repos after 60 days without commits;
+      # re-enabling through the API resets that clock without dummy commits.
+      - name: Keep this schedule enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/keep-supabase-awake.yml/enable"
