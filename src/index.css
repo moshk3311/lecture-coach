@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import "./styles/fonts.css";
+
+/*
+  Visual language: a rehearsal score on warm paper. Royal-ink accent for actions,
+  a live-red light for recording, and the spec's green / amber / red bands for scores.
+*/
+@theme {
+  --font-sans: "IBM Plex Sans Hebrew", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Frank Ruhl Libre", "Times New Roman", serif;
+  --font-en: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-paper: #f5f2eb;
+  --color-card: #fbfaf6;
+  --color-ink: #1d1b17;
+  --color-ink-soft: #5d5a52;
+  --color-ink-faint: #8f8b80;
+  --color-rule: #e3ddd0;
+  --color-accent: #2c43c9;
+  --color-accent-soft: #e6e9fa;
+  --color-on-accent: #ffffff;
+  --color-live: #d4412f;
+  --color-good: #1f7a4a;
+  --color-good-soft: #e2f1e7;
+  --color-warn: #9a5f0c;
+  --color-warn-soft: #f7ecd6;
+  --color-bad: #b63a30;
+  --color-bad-soft: #f8e3e0;
+
+  --animate-rise: rise 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-pulse-live: pulse-live 1.6s ease-in-out infinite;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes pulse-live {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: #131210;
+    --color-card: #1c1b18;
+    --color-ink: #ece8de;
+    --color-ink-soft: #aba699;
+    --color-ink-faint: #7b776c;
+    --color-rule: #2d2b26;
+    --color-accent: #93a3ff;
+    --color-accent-soft: #232845;
+    --color-on-accent: #10132b;
+    --color-live: #ff6a57;
+    --color-good: #6fcf97;
+    --color-good-soft: #17291f;
+    --color-warn: #e6b35a;
+    --color-warn-soft: #2e2413;
+    --color-bad: #f08a7e;
+    --color-bad-soft: #321a17;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+    /* Paper grain: a faint fractal-noise tile. */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    background-image: var(--grain);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* English learning content (wrapped by <En>) always reads in the Latin face. */
+  [lang="en"] {
+    font-family: var(--font-en);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}
+
+/* Staggered entrance: set --i on siblings (0, 1, 2…). */
+@utility rise-in {
+  animation: var(--animate-rise);
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
