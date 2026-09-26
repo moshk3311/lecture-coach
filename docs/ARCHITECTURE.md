@@ -92,6 +92,8 @@ Pin exact versions in Sprint 0 (check current stable releases).
   - Slide order from `ppt/presentation.xml` + `ppt/_rels/presentation.xml.rels`.
   - Slide text: all `<a:t>` runs in `ppt/slides/slideN.xml` (first title placeholder → slide title).
   - Speaker notes: `ppt/notesSlides/notesSlideN.xml` (resolve via slide rels).
+  - Hidden slides (`show="0"`) are skipped. Decks built without placeholders get the short text in the largest font (topmost on a tie) as title. Footers repeated on most slides and bare slide numbers are dropped from the slide text.
+  - The speaker notes become each slide's first script, split into sentences (`import_slides` RPC, one transaction).
 - **Intent notes per slide:** what the user wants to say, in Hebrew or English.
 - **AI script drafting:** per slide, from slide text + notes + intent + time budget → spoken American English script.
 - **Discussion chat:** per lecture, optionally scoped to a slide. User may write in Hebrew. AI can return a `proposed_edit` the user accepts or rejects.
@@ -210,13 +212,13 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 **Transition line ("Before you click"):** one bridge sentence per slide that leads into the next slide, shown highlighted at the bottom of the script (`slides.transition_line`). Editable like the script; AI suggests one when drafting (Sprint 3).
 
 **Timer & planned windows:**
-- Planned duration per slide = script word count ÷ 140 WPM, scaled so the total equals `lectures.target_minutes`. Manual override: `slides.planned_seconds`.
+- Planned duration per slide = script word count ÷ 140 WPM (at least 10 s per slide), scaled so the total equals `lectures.target_minutes`. Manual override: `slides.planned_seconds` (set on the lecture page, m:ss).
 - Planned window = cumulative start–end for the slide (e.g. `Plan: 4:00–6:00`).
 - Status color on the timer: green inside the window · amber up to 15 s past the end · red beyond · blue "ahead" when leaving a slide before its window starts.
 
 **Inline editing:**
 - Click the script (or press E) to edit; Esc or click outside saves (debounced autosave).
-- On save, the slide script is re-segmented into `sentences`; unchanged sentences keep their ids so cached reference audio survives.
+- On save, the slide script is re-segmented into `sentences` (`save_slide_script` RPC); unchanged sentences keep their ids so cached reference audio survives. A sentence edited in place keeps its id while it is still similar, and its audio is cleared. Line breaks are kept in `sentences.starts_paragraph`.
 - "Revert slide" restores the slide's script as it was when the presenter view opened.
 - "Export script" downloads a `.md` with every slide: title, script, transition line.
 
@@ -226,7 +228,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 
 **Memorization levels** (per slide, remembered): L0 full text · L1 every 3rd word blanked · L2 first letters only · L3 keywords only (3–6, chosen by Gemini, cached) · L4 no script. "Peek" shows the full text briefly.
 
-**Slides source:** PNGs from the Hetzner converter; fallback = user uploads a PDF export rendered with PDF.js.
+**Slides source:** PNGs from the Hetzner converter; fallback (built first, Sprint 1) = user uploads a PDF export, rendered in the browser with PDF.js at 1600 px (WebP where the browser encodes it, else PNG). Without images the view shows the slide title and text.
 
 **Full-run rehearsal ("Record take"):** starts the timer and continuous recognition together, with the concatenated script as reference text; every slide change is timestamped. Stop (R) or Esc ends the take → upload → report.
 
@@ -329,6 +331,7 @@ create table sentences (
   slide_id         uuid references slides(id) on delete cascade,
   position         int not null,
   text             text not null,
+  starts_paragraph boolean not null default false,  -- keeps the author's line breaks
   original_text    text,     -- before "Americanize"
   change_notes     jsonb,    -- [{from, to, reason_he}]
   ref_voice        text,
@@ -427,13 +430,16 @@ create table coach_tips (                          -- §5.8, imported from Noteb
 
 **Views:** `v_daily_progress` (avg scores per day) · `v_phoneme_stats` (avg accuracy per phoneme, last 30 days) · `v_month_usage` (sum of `duration_sec` this month).
 
-**RPC:** `save_attempt(payload jsonb)` — inserts attempt + word results and upserts weak items atomically (`security invoker`).
+**RPC** (all `security invoker`):
+- `import_slides(p_lecture_id, p_slides jsonb)` — a new deck's slides and their first sentences, in one transaction.
+- `save_slide_script(p_slide_id, p_sentences jsonb)` — replaces a slide's sentences with an ordered list; an `id` keeps that sentence, `null` inserts one.
+- `save_attempt(payload jsonb)` — inserts attempt + word results and upserts weak items atomically.
 
 **Storage (all private, signed URLs):**
 - `recordings/{user_id}/{attempt_id}.wav`
 - `reference-audio/{user_id}/{sha256}.mp3`
 - `pptx/{user_id}/{lecture_id}.pptx`
-- `slides/{user_id}/{lecture_id}/{n}.png`
+- `slides/{user_id}/{lecture_id}/{n}-{version}.webp|png` (a new version per render, so a re-render never comes back from a stale cache)
 
 **Retention (free-tier storage):** WAV at 16 kHz mono ≈ 1.9 MB/min. A scheduled job keeps audio for the last 5 attempts per sentence and full runs from the last 60 days; older audio files are deleted, scores are kept (`audio_path = null`).
 
@@ -657,4 +663,5 @@ Portal names change often; if a label differs, search for "Speech".
 - **Login email:** carries both a magic link (desktop) and a 6-digit code (installed iOS PWA, where links open in Safari instead of the app). It is sent through the owner's Gmail (custom SMTP). On the free plan, the built-in email service rejects custom templates, and it sends only 2 emails per hour. With custom SMTP, the limit is 30 per hour.
 - **`config push`:** writes every property `config.toml` declares, email template bodies included. Template defaults that differ from the hosted project are commented out and marked "Hosted default". SMTP stays undeclared, because its password lives only in the Dashboard. Run `supabase config diff` before every push.
 - **Azure pronunciation assessment:** audio longer than 30 s needs continuous mode, where `enableMiscue` is not supported → Sprint 2 computes omissions/insertions by aligning recognized words with the script. Prosody is en-US only (SDK ≥ 1.35).
+- **PDF.js:** the modern build needs `Map.prototype.getOrInsertComputed`, which older Chromium (141) and Safari lack → the app uses the legacy build (Sprint 1).
 - **Gemini:** latest free-tier Flash model is `gemini-3.8-flash` (text/image/video/audio/PDF input, 1M-token context). Rate limits are per account and shown only in AI Studio.
