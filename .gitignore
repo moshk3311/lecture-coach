@@ -18,6 +18,9 @@ dev-dist
 supabase/.branches
 supabase/.temp
 
+# Private data: coach tips distilled from the owner's NotebookLM notebooks (imported into the DB, never committed)
+private/
+
 # Editor / OS
 .vscode/*
 !.vscode/extensions.json

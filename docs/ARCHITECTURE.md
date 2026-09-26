@@ -17,6 +17,7 @@ A personal app for improving English lecturing skills over time: co-write the sc
 | G3 | Provide American reference audio (normal + slow) for every sentence. |
 | G4 | Track progress over time; surface recurring weak words and sounds for targeted practice. |
 | G5 | Rehearse the full talk: slides left, script right, memorization support, delivery report (time, pace, fillers, pauses, tone). |
+| G6 | Coach stage delivery: after each full take, 2–3 tips for the next take, grounded in the owner's NotebookLM notebook. |
 
 **Non-goals:** multiple users · real-time feedback while speaking (feedback comes after each recording) · editing PowerPoint files · video / body-language analysis.
 
@@ -37,6 +38,7 @@ A personal app for improving English lecturing skills over time: co-write the sc
 | Slide images (MVP, Sprint 1) | LibreOffice headless on the existing Hetzner VPS | Faithful PPTX rendering, no extra cost. | One more small service. Fallback: user uploads a PDF export → PDF.js. |
 | Feedback timing | After each recording | Simpler, more accurate, cheaper than streaming analysis. | No live cues while speaking. |
 | Provider abstraction | `SpeechProvider` / `LlmProvider` interfaces | Swap Gemini → Claude API (or Azure → self-hosted) later without rewrites. | Slight upfront structure. |
+| Coach tips source | The owner's NotebookLM notebook, imported by Claude on request into a private `coach_tips` table | Tips come from talks the owner chose; rules pick them from measured data, so they show even when Gemini fails. | The app cannot read NotebookLM → catalog updates are manual. Tip content stays in the DB, not in this public repo. |
 
 ---
 
@@ -248,6 +250,45 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 
 Long audio for Gemini: upload via the Gemini Files API in one call, with slide-change timestamps in the prompt (check current size and token limits; fallback: split per slide).
 
+### 5.8 Coach Tips (from the owner's NotebookLM notebook)
+
+The run report ends with **"Tips for the next take"**: 2–3 tips grounded in the owner's NotebookLM notebook (today: *Storytelling*, 8 TED/TEDx talks on delivery, storytelling, humor, self-introduction and practice). Tips appear only in the run report.
+
+**Catalog:** `coach_tips` (§6), private to the owner. A tip has a slug, a category (`delivery` · `structure` · `humor` · `stage` · `practice` · `mindset`), triggers, a rotating flag, a Hebrew title and body, an optional English example (an original line, not a quote) and its sources (speaker, talk, URL). The first import has 44 tips; the working copy lives in `private/coach-tips/` (gitignored).
+
+**Import ("עדכן טיפים"):** done by Claude, not the app.
+1. Read the notebook with the NotebookLM CLI: the full text of each source, plus grounded questions per category.
+2. Distill the tips and check each one against its source text.
+3. Show the owner the changes.
+4. After approval, upsert by slug.
+
+The app never calls NotebookLM.
+
+**Triggers** (draft thresholds are kept with the catalog; calibrate them on real takes):
+
+| Detected from | Triggers |
+|---|---|
+| Metrics (§5.3, §5.7) | `pace_fast` · `pace_slow` · `few_pauses` · `long_pauses` · `fillers` · `overtime` · `slide_overrun` · `long_intro` |
+| Azure / script alignment | `monotone` · `low_coverage` |
+| Transcript counts | `and_heavy` (many "and", few "but") · `low_you` (little direct address) |
+| Run history | `first_run` · `repeat_issue` · `many_issues` |
+| Gemini (listening) | `low_energy` · `flat_emotion` · `no_hook` · `no_key_point` · `no_story` · `weak_ending` |
+
+**Selection (rules, shown at once):** `selectTips(issues, catalog, recentSlugs)` is a pure, unit-tested function.
+1. Detect the issues and rank them by severity. Keep the top 3.
+2. Pick one tip per issue from the tips whose triggers match. Skip a tip shown in the last 5 takes when another one fits.
+3. Every card shows the measured evidence, e.g. "172 WPM on slides 4–6 (target 130–160)".
+4. With fewer than 3 issues, add one rotating tip labeled "עוד טיפ מהמחברת". These cover body language, humor and mindset, which the app does not measure.
+
+**AI layer:** `run_report` receives the selected tips (slug, trigger, evidence) and the catalog index (slug, title, triggers).
+- It anchors each selected tip to one moment in the take: the slide, the approximate time and what was said. It adds a personal Hebrew line.
+- It may add up to 2 tips for what only listening reveals (the Gemini triggers above). It uses a catalog slug when one fits. Otherwise the tip has `from_notebook: false` and is shown as "הצעה כללית, לא מהמחברת".
+- Unknown slugs are dropped.
+
+**Fallback:** if Gemini fails or its quota is used up, the rule tips stay, and a "נסה שוב" button re-requests the AI layer. If the catalog is empty, only AI tips show, all labeled as general.
+
+**Card:** title · body · evidence chip · English example (LTR) · source link ("מתוך: speaker — talk", opens YouTube). Latin text inside Hebrew fields is wrapped LTR. The tips are saved with the take: rule tips in `attempts.metrics.tips`, AI tips in `attempts.ai_feedback.tips`.
+
 ---
 
 ## 6. Data Model (Postgres)
@@ -361,6 +402,23 @@ create table user_settings (
   privacy_ack          boolean not null default false,
   azure_minutes_cap    int not null default 300
 );
+
+create table coach_tips (                          -- §5.8, imported from NotebookLM
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  slug          text not null,
+  category      text not null
+                check (category in ('delivery','structure','humor','stage','practice','mindset')),
+  triggers      text[] not null default '{}',
+  rotating      boolean not null default false,    -- may fill the report without a trigger
+  title_he      text not null,
+  body_he       text not null,
+  example_en    text,
+  sources       jsonb not null default '[]',       -- [{speaker, title, event, url}]
+  active        boolean not null default true,
+  updated_at    timestamptz not null default now(),
+  unique (user_id, slug)
+);
 ```
 
 **RLS:** enabled on every table. Tables with `user_id` → `user_id = auth.uid()`. Child tables (`slides`, `sentences`, `chat_messages`, `word_results`) → `exists` check against the owning `lectures` / `attempts` row.
@@ -399,7 +457,7 @@ Calls `https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueT
 | `chat` | lecture + slide context, history, message | `{ reply, proposed_edit? }` |
 | `feedback` | see §5.4 | feedback JSON (§5.4) |
 | `keywords` | `{ slide_script }` | `{ keywords[] }` |
-| `run_report` | full-run audio (Files API), script, slide timestamps, metrics, per-slide data, weak words | `{ summary_he, strengths_he[], improvements[], next_session_plan_he, corrections[] }` |
+| `run_report` | full-run audio (Files API), script, slide timestamps, metrics, per-slide data, weak words, selected tips + catalog index (§5.8) | `{ summary_he, strengths_he[], improvements[], next_session_plan_he, corrections[], tips[] }` |
 
 Implementation: Gemini REST with `system_instruction`, `responseMimeType: "application/json"` + `responseSchema`; model from `GEMINI_MODEL`; retry 429/5xx with exponential backoff (max 2 retries); on failure return `503 { message_he }`. Audio only when `user_settings.send_audio_to_llm = true` (without audio the report has no Corrections section).
 
@@ -417,6 +475,23 @@ Implementation: Gemini REST with `system_instruction`, `responseMimeType: "appli
 }
 ```
 Prompt rule for corrections: "Listen as a native American listener. Quote exactly what was said. Flag only what a US listener would notice. Judge by the audio, not the script."
+
+`tips[]` item schema (§5.8; `title_he` and `body_he` only when `slug` is null):
+```json
+{
+  "slug": "pause-before-key",
+  "from_notebook": true,
+  "trigger": "pace_fast",
+  "slide": 5,
+  "approx_start_sec": 132.4,
+  "said_en": "and the valve was the real problem",
+  "personal_he": "string",
+  "example_en": "string",
+  "title_he": null,
+  "body_he": null
+}
+```
+Prompt rule for tips: "Anchor every tip to one moment you heard. Use only slugs from the catalog for notebook tips. Never present your own advice as coming from the notebook."
 
 ### `slides-convert` (Sprint 1)
 `POST { lecture_id }` → `{ pages }`
@@ -483,6 +558,11 @@ For each sprint: plan → approval → build → demo checklist → update Statu
 **Tasks:** AudioWorklet capture + WAV encoder · continuous pronunciation assessment with the concatenated script · slide-change timestamps · typed result parser + derived metrics (unit tests) · Storage upload + `save_attempt` (mode `full_run`) · `ai` function: `run_report` (audio via Files API, incl. corrections) + `keywords` (enables memorization L3) · basic TTS for correction phrases + cache · audio slicing with Azure/Gemini time anchoring · run report page per §5.7 incl. Corrections cards · run history per lecture · Azure usage meter · short spike report: filler detection, iOS installed-PWA mic, prosody availability in the region, noise suppression on/off, accuracy of Gemini timestamps.
 **Acceptance:** rehearse a 10-slide deck end to end → report shows total and per-slide time vs planned windows, WPM, fillers, pauses, coverage, prosody, weakest words, AI feedback and Corrections cards where ▶ You and ▶ American both play the right phrase (or graceful fallback) · previous runs listed · tests pass.
 
+### Sprint 2b — Coach tips in the run report
+**Prerequisites:** Sprint 2 done · the owner has approved the tips draft (`private/coach-tips/`).
+**Tasks:** `coach_tips` migration + RLS · import the approved catalog · issue detection + `selectTips` (unit tests) · transcript counts ("and" / "but", "you") · `run_report` tips input and `tips[]` output with validation · tip cards per §5.8 (evidence, example, source link, general-tip label) · rotation over the last 5 takes · calibrate thresholds on 3+ real takes.
+**Acceptance:** a take with a clear issue (e.g. fast pace) shows the matching notebook tip with its evidence at once · Gemini anchors it to a moment · with Gemini off or failing, the rule tips still show · general tips are labeled · tests pass.
+
 ### Sprint 3 — Script Studio + reference audio
 **Tasks:** slide intent notes · `ai` actions `draft_script` (script + transition line), `americanize`, `chat` · diff view with Hebrew reasons · sentence segmentation editor · TTS per sentence normal/slow + word highlighting (extends the Sprint 2 TTS) · voice setting.
 **Acceptance:** import a deck → AI drafts script and transition lines for all slides → refine via chat → every sentence has playable reference audio (normal and slow) → changes appear in the presenter view.
@@ -516,6 +596,7 @@ lecture-coach/
 │  ├─ migrations/
 │  └─ functions/ azure-token/ ai/ slides-convert/
 ├─ converter/           # Dockerfile + server (Sprint 1)
+├─ private/             # gitignored: coach-tips working copy (§5.8)
 └─ .github/workflows/deploy.yml
 ```
 
@@ -538,6 +619,7 @@ lecture-coach/
 5. Supabase free-tier limits: project count, storage, inactivity pausing (Sprint 0).
 6. Availability of the default voice in the region (Sprint 2).
 7. Accuracy of Gemini audio timestamps for correction slicing (Sprint 2).
+8. Thresholds for the tip triggers: calibrate on real takes (Sprint 2b).
 
 ---
 

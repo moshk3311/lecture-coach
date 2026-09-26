@@ -32,5 +32,6 @@ supabase secrets set KEY=value           # set server secrets
   - Verified limits and API behavior: ARCHITECTURE Appendix B.
 - [ ] Sprint 1 — Lecture import + Presenter view (MVP 1/2)
 - [ ] Sprint 2 — Full-run recording + Run report (MVP 2/2)
+- [ ] Sprint 2b — Coach tips in the run report · tips draft (44, from the NotebookLM notebook "Storytelling") waiting for approval; working copy in `private/coach-tips/` (gitignored)
 - [ ] Sprint 3 — Script Studio + reference audio
 - [ ] Sprint 4 — Sentence practice, AI feedback, progress
