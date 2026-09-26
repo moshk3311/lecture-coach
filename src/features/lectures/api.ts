@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { Tables, TablesInsert, TablesUpdate } from '../../lib/database.types'
 import type { ParsedDeck } from '../../lib/pptx'
 import { supabase } from '../../lib/supabase'
@@ -77,6 +77,27 @@ export function useUpdateLecture() {
       )
       return queryClient.invalidateQueries({ queryKey: lectureKeys.all, exact: true })
     },
+  })
+}
+
+/** Replaces fields of one slide in the cached deck. */
+export function patchDeckSlide(queryClient: QueryClient, lectureId: string, slideId: string, patch: Partial<SlideWithSentences>) {
+  queryClient.setQueryData<LectureDeck | null>(lectureKeys.detail(lectureId), (deck) =>
+    deck ? { ...deck, slides: deck.slides.map((s) => (s.id === slideId ? { ...s, ...patch } : s)) } : deck,
+  )
+}
+
+/** Slide fields edited in place (memo level, transition line, planned time), updated optimistically. */
+export function useUpdateSlide(lectureId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: TablesUpdate<'slides'> }): Promise<Slide> => {
+      const { data, error } = await supabase.from('slides').update(patch).eq('id', id).select().single()
+      if (error) throw error
+      return data
+    },
+    onMutate: ({ id, patch }) => patchDeckSlide(queryClient, lectureId, id, patch),
+    onError: () => queryClient.invalidateQueries({ queryKey: lectureKeys.detail(lectureId) }),
   })
 }
 
