@@ -52,6 +52,8 @@ export default defineConfig(({ command }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+          // PDF.js only runs while importing slide images, which needs the network anyway.
+          globIgnores: ['**/pdf-*.js', '**/pdf.worker*'],
           // The Speech SDK chunk is large; it is lazy-loaded but still worth caching.
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           cleanupOutdatedCaches: true,

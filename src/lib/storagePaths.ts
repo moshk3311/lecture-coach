@@ -9,7 +9,16 @@ export function slideImagesFolder(userId: string, lectureId: string): string {
   return `${userId}/${lectureId}`
 }
 
-/** One rendered slide; `position` is the 1-based slide number. */
-export function slideImagePath(userId: string, lectureId: string, position: number, ext: 'png' | 'webp'): string {
-  return `${slideImagesFolder(userId, lectureId)}/${position}.${ext}`
+/**
+ * One rendered slide; `position` is the 1-based slide number. `version` changes on every render,
+ * so a re-rendered slide never comes back from a stale CDN or browser cache.
+ */
+export function slideImagePath(
+  userId: string,
+  lectureId: string,
+  position: number,
+  version: string,
+  ext: 'png' | 'webp',
+): string {
+  return `${slideImagesFolder(userId, lectureId)}/${position}-${version}.${ext}`
 }
