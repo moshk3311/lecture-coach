@@ -1,5 +1,12 @@
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
+#
+# `supabase config push` writes every property this file declares to the hosted project.
+# Template defaults that differ from the hosted settings are commented out and marked
+# "Hosted default", so a push leaves them alone. Run `supabase config diff` before every push.
+# Email templates (subject + content_path) are pushed too, but on the free plan only while
+# custom SMTP is on. SMTP is set in the Dashboard (Auth → Emails → SMTP) and stays
+# undeclared here, so a push never touches it and its password never enters the repo.
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
 project_id = "lecture-coach"
@@ -47,10 +54,11 @@ port = 54329
 # Specifies when a server connection can be reused by other clients.
 # Configure one of the supported pooler modes: `transaction`, `session`.
 pool_mode = "transaction"
+# Hosted default: pool sizes are not declared, so a push keeps the hosted pooler (15 / 200).
 # How many server connections to allow per user/database pair.
-default_pool_size = 20
+# default_pool_size = 20
 # Maximum number of client connections allowed.
-max_client_conn = 100
+# max_client_conn = 100
 
 # [db.vault]
 # secret_key = "env(SECRET_VALUE)"
@@ -69,15 +77,16 @@ enabled = true
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
 sql_paths = ["./seed.sql"]
 
-[db.network_restrictions]
+# Hosted default: not declared.
+# [db.network_restrictions]
 # Enable management of network restrictions.
-enabled = false
+# enabled = false
 # List of IPv4 CIDR blocks allowed to connect to the database.
 # Defaults to allow all IPv4 connections. Set empty array to block all IPs.
-allowed_cidrs = ["0.0.0.0/0"]
+# allowed_cidrs = ["0.0.0.0/0"]
 # List of IPv6 CIDR blocks allowed to connect to the database.
 # Defaults to allow all IPv6 connections. Set empty array to block all IPs.
-allowed_cidrs_v6 = ["::/0"]
+# allowed_cidrs_v6 = ["::/0"]
 
 # Uncomment to reject non-secure connections to the database.
 # [db.ssl_enforcement]
@@ -133,11 +142,12 @@ enabled = true
 
 # Store analytical data in S3 for running ETL jobs over Iceberg Catalog
 # This feature is only available on the hosted platform.
-[storage.analytics]
-enabled = false
-max_namespaces = 5
-max_tables = 10
-max_catalogs = 2
+# Hosted default: not declared (hosted has it enabled).
+# [storage.analytics]
+# enabled = false
+# max_namespaces = 5
+# max_tables = 10
+# max_catalogs = 2
 
 # Analytics Buckets is available to Supabase Pro plan.
 # [storage.analytics.buckets.my-warehouse]
@@ -187,7 +197,8 @@ enable_manual_linking = false
 minimum_password_length = 6
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+# Hosted default: not declared.
+# password_requirements = ""
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -201,7 +212,8 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Hosted default: not declared (managed in the Dashboard with custom SMTP).
+# email_sent = 2
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -296,12 +308,13 @@ max_frequency = "5s"
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
-[auth.sms.twilio]
-enabled = false
-account_sid = ""
-message_service_sid = ""
+# Hosted default: not declared.
+# [auth.sms.twilio]
+# enabled = false
+# account_sid = ""
+# message_service_sid = ""
 # DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
-auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
+# auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 
 # Multi-factor-authentication is available to Supabase Pro plan.
 [auth.mfa]
@@ -309,9 +322,10 @@ auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
-[auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+# Hosted default: not declared (hosted has TOTP enabled).
+# [auth.mfa.totp]
+# enroll_enabled = false
+# verify_enabled = false
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
@@ -329,20 +343,21 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
-[auth.external.apple]
-enabled = false
-client_id = ""
+# Hosted default: not declared.
+# [auth.external.apple]
+# enabled = false
+# client_id = ""
 # DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
-secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
+# secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
 # Overrides the default auth callback URL derived from auth.external_url.
-redirect_uri = ""
+# redirect_uri = ""
 # Overrides the default auth provider URL. Used to support self-hosted gitlab, single-tenant Azure,
 # or any other third-party OIDC providers.
-url = ""
+# url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
-skip_nonce_check = false
+# skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
-email_optional = false
+# email_optional = false
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
@@ -373,13 +388,14 @@ enabled = false
 # domain = "example.clerk.accounts.dev"
 
 # OAuth server configuration
-[auth.oauth_server]
+# Hosted default: not declared.
+# [auth.oauth_server]
 # Enable OAuth server functionality
-enabled = false
+# enabled = false
 # Path for OAuth consent flow UI
-authorization_url_path = "/oauth/consent"
+# authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
-allow_dynamic_registration = false
+# allow_dynamic_registration = false
 
 [edge_runtime]
 enabled = true

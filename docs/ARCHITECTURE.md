@@ -534,6 +534,7 @@ Store in `supabase/functions/ai/prompts/` and version them.
 | Azure Neural TTS (F0) | 0.5M characters/month | 15-min script ≈ 12k chars × 2 variants | hash cache |
 | Gemini API (free tier) | per-model RPM / RPD limits | 1 call per attempt | backoff + retry button |
 | Supabase (free) | project count, DB/storage caps, pause on inactivity | audio is the main storage | retention job |
+| Gmail SMTP (login emails) | ~500 emails/day | a few per week | Auth rate limit 30/hour |
 | GitHub Pages | free | static hosting | — |
 | Hetzner VPS | already paid | converter container | — |
 
@@ -639,12 +640,21 @@ Portal names change often; if a label differs, search for "Speech".
 1. aistudio.google.com → *Get API key* → create a key.
 2. `supabase secrets set GEMINI_API_KEY=... GEMINI_MODEL=<current Flash model>`
 
+**Login emails (Gmail SMTP)**
+1. myaccount.google.com/apppasswords → create an app password named `Supabase lecture-coach`.
+2. Dashboard → *Authentication* → *Emails* → *SMTP Settings* → enable custom SMTP:
+   - host `smtp.gmail.com`, port `465`, minimum interval `60`;
+   - username and sender email: the owner's Gmail address;
+   - password: the app password.
+3. `supabase config diff` → review → `supabase config push` (sends the Hebrew templates from `supabase/templates/`).
+
 ---
 
 ## Appendix B — Verified in Sprint 0 (September 2026)
 
 - **Supabase free plan:** 2 active projects · 500 MB database · 1 GB storage · **50 MB max per upload** · pauses after ~7 days without database activity → `keep-supabase-awake` workflow calls `public.ping()` three times a day (no emails).
 - **Edge Functions auth:** the platform `verify_jwt` check lets the publishable key through and does not understand this project's ES256 user sessions. Functions deploy with `verify_jwt = false` and call `requireUser()` (`supabase/functions/_shared/auth.ts`), which validates the session with Supabase Auth.
-- **Login email:** carries both a magic link (desktop) and a 6-digit code (installed iOS PWA, where links open in Safari instead of the app).
+- **Login email:** carries both a magic link (desktop) and a 6-digit code (installed iOS PWA, where links open in Safari instead of the app). It is sent through the owner's Gmail (custom SMTP). On the free plan, the built-in email service rejects custom templates, and it sends only 2 emails per hour. With custom SMTP, the limit is 30 per hour.
+- **`config push`:** writes every property `config.toml` declares, email template bodies included. Template defaults that differ from the hosted project are commented out and marked "Hosted default". SMTP stays undeclared, because its password lives only in the Dashboard. Run `supabase config diff` before every push.
 - **Azure pronunciation assessment:** audio longer than 30 s needs continuous mode, where `enableMiscue` is not supported → Sprint 2 computes omissions/insertions by aligning recognized words with the script. Prosody is en-US only (SDK ≥ 1.35).
 - **Gemini:** latest free-tier Flash model is `gemini-3.8-flash` (text/image/video/audio/PDF input, 1M-token context). Rate limits are per account and shown only in AI Studio.

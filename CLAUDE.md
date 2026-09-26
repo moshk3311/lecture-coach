@@ -27,7 +27,7 @@ supabase secrets set KEY=value           # set server secrets
 ```
 
 ## Status
-- [ ] Sprint 0 — Setup · code, DB, `azure-token` and deploy done; waiting on Azure secrets, auth settings push and a phone login check
+- [ ] Sprint 0 — Setup · code, DB, `azure-token`, deploy and auth settings done (login emails via Gmail SMTP); waiting on the Azure and Gemini secrets and a login check on desktop and phone
   - Supabase project: `lecture-coach` (`gzppgmoegcsdtovcdkmy`, eu-central-1). Migrations applied via the Supabase MCP; local file names match the remote versions.
   - Verified limits and API behavior: ARCHITECTURE Appendix B.
 - [ ] Sprint 1 — Lecture import + Presenter view (MVP 1/2)
