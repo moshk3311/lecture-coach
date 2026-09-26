@@ -1,70 +1,100 @@
-import { Check, Plus } from 'lucide-react'
+import { ChevronLeft, LoaderCircle, Plus } from 'lucide-react'
+import { Link } from 'react-router'
+import { Alert } from '../../components/Alert'
 import { PageHeader } from '../../components/PageHeader'
 import { stagger } from '../../components/stagger'
 import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
-
-const ROADMAP = [
-  { sprint: 'Sprint 0', title: 'תשתית: כניסה, מסד נתונים, פריסה ו-PWA', done: true },
-  { sprint: 'Sprint 1', title: 'ייבוא מצגת ומצב הצגה עם תסריט וטיימר', done: false },
-  { sprint: 'Sprint 2', title: 'הקלטת חזרה מלאה ודוח ביצוע', done: false },
-  { sprint: 'Sprint 3', title: 'סטודיו תסריט וקול אמריקאי לכל משפט', done: false },
-  { sprint: 'Sprint 4', title: 'תרגול משפטים, משוב AI ומעקב התקדמות', done: false },
-]
+import { formatShortDate } from '../../lib/format'
+import { useLectures, type LectureSummary } from './api'
 
 export function LecturesPage() {
+  const { data: lectures, isPending, isError } = useLectures()
+
   return (
     <>
       <PageHeader
         number="01"
         section="Script Studio"
         title="הרצאות"
-        subtitle="כאן מתחילים: יוצרים הרצאה, מייבאים מצגת PowerPoint, כותבים תסריט ועוברים לחזרות."
+        subtitle="כאן מתחילים: יוצרים הרצאה, מייבאים מצגת PowerPoint ועוברים לחזרות."
       />
 
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-        <section className={`${cardStyles} rise-in flex flex-col items-start p-6 md:p-8`} style={stagger(3)}>
-          <ScriptSheetArt />
-          <h2 className="mt-6 font-display text-2xl font-semibold">עוד אין הרצאות</h2>
-          <p className="mt-2 max-w-prose leading-relaxed text-ink-soft">
-            בקרוב תוכל ליצור הרצאה, להעלות קובץ <span dir="ltr">.pptx</span> ולקבל את השקפים, הטקסט והערות הדובר
-            כבסיס לתסריט.
-          </p>
-          <div className="mt-6 flex items-center gap-3">
-            <button type="button" disabled className={buttonStyles.primary}>
-              <Plus size={18} aria-hidden="true" />
-              הרצאה חדשה
-            </button>
-            <span className={kickerStyles} dir="ltr" lang="en">
-              Sprint 1
-            </span>
-          </div>
-        </section>
-
-        <section className={`${cardStyles} rise-in p-6 md:p-8`} style={stagger(4)}>
-          <h2 className="font-display text-xl font-semibold">מה בדרך</h2>
-          <ol className="mt-5 space-y-4">
-            {ROADMAP.map((step) => (
-              <li key={step.sprint} className="flex gap-3">
-                <span
-                  className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border ${
-                    step.done ? 'border-good bg-good text-card' : 'border-rule text-ink-faint'
-                  }`}
-                  aria-hidden="true"
-                >
-                  {step.done ? <Check size={14} strokeWidth={3} /> : null}
-                </span>
-                <div>
-                  <p className={kickerStyles} dir="ltr" lang="en" style={{ textAlign: 'right' }}>
-                    {step.sprint}
-                  </p>
-                  <p className={step.done ? 'text-ink' : 'text-ink-soft'}>{step.title}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-      </div>
+      {isPending ? (
+        <p className="flex items-center gap-2 text-ink-soft">
+          <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />
+          טוען הרצאות…
+        </p>
+      ) : isError ? (
+        <Alert>לא הצלחתי לטעון את ההרצאות. בדוק את החיבור ורענן את הדף.</Alert>
+      ) : lectures.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <LectureList lectures={lectures} />
+      )}
     </>
+  )
+}
+
+function LectureList({ lectures }: { lectures: LectureSummary[] }) {
+  return (
+    <div className="rise-in" style={stagger(3)}>
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <p className="text-ink-soft">{lectures.length === 1 ? 'הרצאה אחת' : `${lectures.length} הרצאות`}</p>
+        <Link to="/lectures/new" className={buttonStyles.primary}>
+          <Plus size={18} aria-hidden="true" />
+          הרצאה חדשה
+        </Link>
+      </div>
+      <ul className="grid grid-cols-1 gap-3">
+        {lectures.map((lecture) => (
+          <li key={lecture.id}>
+            <Link
+              to={`/lectures/${lecture.id}`}
+              className={`${cardStyles} group flex items-center gap-4 p-5 transition hover:border-ink-faint md:p-6`}
+            >
+              <div className="min-w-0 flex-1">
+                <h2 dir="auto" className="truncate text-right font-display text-xl font-semibold">
+                  {lecture.title}
+                </h2>
+                <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-sm text-ink-soft">
+                  <span>{lecture.slideCount ? `${lecture.slideCount} שקפים` : 'בלי שקפים עדיין'}</span>
+                  {lecture.target_minutes ? <span>{lecture.target_minutes} דק׳</span> : null}
+                  {lecture.audience ? (
+                    <span className="min-w-0 truncate">
+                      קהל: <span dir="auto">{lecture.audience}</span>
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+              <span className="hidden shrink-0 text-sm text-ink-faint sm:block">{formatShortDate(lecture.updated_at)}</span>
+              <ChevronLeft size={20} className="shrink-0 text-ink-faint transition group-hover:-translate-x-0.5" aria-hidden="true" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function EmptyState() {
+  return (
+    <section className={`${cardStyles} rise-in flex flex-col items-start p-6 md:p-8`} style={stagger(3)}>
+      <ScriptSheetArt />
+      <h2 className="mt-6 font-display text-2xl font-semibold">עוד אין הרצאות</h2>
+      <p className="mt-2 max-w-prose leading-relaxed text-ink-soft">
+        צור הרצאה והעלה קובץ <span dir="ltr">.pptx</span>. השקפים והערות הדובר יהפכו לבסיס של התסריט, ואז אפשר
+        לעשות חזרה במצב מציג.
+      </p>
+      <div className="mt-6 flex items-center gap-3">
+        <Link to="/lectures/new" className={buttonStyles.primary}>
+          <Plus size={18} aria-hidden="true" />
+          הרצאה חדשה
+        </Link>
+        <span className={kickerStyles} dir="ltr" lang="en">
+          Step 1
+        </span>
+      </div>
+    </section>
   )
 }
 

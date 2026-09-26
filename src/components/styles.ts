@@ -8,6 +8,7 @@ export const buttonStyles = {
   primary: `${buttonBase} bg-accent text-on-accent shadow-[0_1px_0_rgb(0_0_0/0.12)] hover:brightness-110`,
   secondary: `${buttonBase} border border-rule bg-card text-ink hover:border-ink-faint`,
   ghost: `${buttonBase} px-3 text-ink-soft hover:bg-ink/5 hover:text-ink`,
+  danger: `${buttonBase} bg-bad text-on-accent hover:brightness-110`,
 }
 
 export const cardStyles =
