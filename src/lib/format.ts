@@ -12,3 +12,11 @@ const shortDate = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'sho
 export function formatShortDate(iso: string): string {
   return shortDate.format(new Date(iso))
 }
+
+/** Parses "90", "1:30" or "1:02:05" into seconds; null for empty text, NaN when it is not a time. */
+export function parseClock(text: string): number | null {
+  const clean = text.trim()
+  if (!clean) return null
+  if (!/^\d+(:[0-5]?\d){0,2}$/.test(clean)) return Number.NaN
+  return clean.split(':').reduce((total, part) => total * 60 + Number(part), 0)
+}

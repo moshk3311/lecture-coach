@@ -1,5 +1,5 @@
 import { FileUp, ImagePlus, LoaderCircle, Pencil, Presentation, Save, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { Alert } from '../../components/Alert'
 import { BackLink } from '../../components/BackLink'
@@ -7,7 +7,9 @@ import { En } from '../../components/En'
 import { SlideFrame } from '../../components/SlideFrame'
 import { stagger } from '../../components/stagger'
 import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
-import { joinScript } from '../../lib/script'
+import { formatClock } from '../../lib/format'
+import { countWords, joinScript } from '../../lib/script'
+import { planWindows } from '../present/plan'
 import {
   useDeleteLecture,
   useImportDeck,
@@ -15,10 +17,12 @@ import {
   useRenderSlideImages,
   useSlideImageUrls,
   useUpdateLecture,
+  useUpdateSlide,
   type LectureDeck,
 } from './api'
 import { DeckPicker, type PickedDeck } from './DeckPicker'
 import { PdfPicker } from './PdfPicker'
+import { PlannedTime } from './PlannedTime'
 import { SlideImagesError, type RenderProgress, type RenderResult } from './slideImages'
 import { LectureForm } from './LectureForm'
 import { toFormValues } from './lectureFields'
@@ -180,12 +184,31 @@ function SlideList({ deck }: { deck: LectureDeck }) {
 
 function SlideRows({ deck }: { deck: LectureDeck }) {
   const { data: urls } = useSlideImageUrls(deck)
+  const updateSlide = useUpdateSlide(deck.id)
+  const windows = useMemo(
+    () =>
+      planWindows(
+        deck.slides.map((s) => ({ words: countWords(joinScript(s.sentences)), plannedSeconds: s.planned_seconds })),
+        deck.target_minutes ? deck.target_minutes * 60 : null,
+      ),
+    [deck.slides, deck.target_minutes],
+  )
+  const total = windows.at(-1)?.end ?? 0
 
   return (
     <section className="rise-in" style={stagger(5)}>
-      <h2 className="mb-4 font-display text-xl font-semibold">שקפים</h2>
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="font-display text-xl font-semibold">שקפים</h2>
+        <p className="text-sm text-ink-soft">
+          תכנון כולל{' '}
+          <span dir="ltr" className="font-mono">
+            {formatClock(total)}
+          </span>
+          {deck.target_minutes ? ` · יעד ${deck.target_minutes} דק׳` : ' · לפי 140 מילים לדקה'}
+        </p>
+      </div>
       <ol className="grid grid-cols-1 gap-3">
-        {deck.slides.map((slide) => (
+        {deck.slides.map((slide, index) => (
           <li key={slide.id} className={`${cardStyles} flex gap-3 p-3 sm:gap-4 sm:p-4`}>
             <span className="w-6 shrink-0 pt-0.5 text-center font-mono text-sm text-ink-faint">{slide.position}</span>
             <div className="min-w-0 flex-1">
@@ -195,6 +218,13 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
               <En as="p" className="mt-1 line-clamp-2 text-sm leading-relaxed text-ink-soft">
                 {joinScript(slide.sentences) || '—'}
               </En>
+              <div className="mt-1.5 -ms-1.5">
+                <PlannedTime
+                  window={windows[index]}
+                  manualSeconds={slide.planned_seconds}
+                  onSave={(seconds) => updateSlide.mutate({ id: slide.id, patch: { planned_seconds: seconds } })}
+                />
+              </div>
             </div>
             <SlideFrame
               imageUrl={slide.image_path ? urls?.get(slide.image_path) : null}

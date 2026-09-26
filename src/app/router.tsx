@@ -5,6 +5,7 @@ import { LecturesPage } from '../features/lectures/LecturesPage'
 import { NewLecturePage } from '../features/lectures/NewLecturePage'
 import { PracticePage } from '../features/practice/PracticePage'
 import { PresentPage } from '../features/present/PresentPage'
+import { PresenterPage } from '../features/present/PresenterPage'
 import { ProgressPage } from '../features/progress/ProgressPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { AppLayout } from './AppLayout'
@@ -16,6 +17,8 @@ export const router = createHashRouter([
   {
     element: <RequireAuth />,
     children: [
+      // Full screen, outside the app shell.
+      { path: 'present/:lectureId', element: <PresenterPage /> },
       {
         element: <AppLayout />,
         children: [
