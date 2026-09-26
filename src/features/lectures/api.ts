@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Tables, TablesInsert, TablesUpdate } from '../../lib/database.types'
+import type { ParsedDeck } from '../../lib/pptx'
 import { supabase } from '../../lib/supabase'
 import { slideImagesFolder } from '../../lib/storagePaths'
+import { importDeck } from './importDeck'
 
 export type Lecture = Tables<'lectures'>
 export type Slide = Tables<'slides'>
@@ -74,6 +76,16 @@ export function useUpdateLecture() {
       )
       return queryClient.invalidateQueries({ queryKey: lectureKeys.all, exact: true })
     },
+  })
+}
+
+/** Imports a parsed deck into a lecture that has no slides yet. */
+export function useImportDeck() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ lecture, file, deck }: { lecture: Lecture; file: File; deck: ParsedDeck }) => importDeck(lecture, file, deck),
+    // Prefix match: the list (slide counts) and this lecture's deck.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: lectureKeys.all }),
   })
 }
 
