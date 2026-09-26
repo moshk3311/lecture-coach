@@ -1,6 +1,8 @@
 import { Navigate, createHashRouter } from 'react-router'
 import { LoginPage } from '../features/auth/LoginPage'
+import { LecturePage } from '../features/lectures/LecturePage'
 import { LecturesPage } from '../features/lectures/LecturesPage'
+import { NewLecturePage } from '../features/lectures/NewLecturePage'
 import { PracticePage } from '../features/practice/PracticePage'
 import { PresentPage } from '../features/present/PresentPage'
 import { ProgressPage } from '../features/progress/ProgressPage'
@@ -18,6 +20,8 @@ export const router = createHashRouter([
         element: <AppLayout />,
         children: [
           { index: true, element: <LecturesPage /> },
+          { path: 'lectures/new', element: <NewLecturePage /> },
+          { path: 'lectures/:id', element: <LecturePage /> },
           { path: 'practice', element: <PracticePage /> },
           { path: 'present', element: <PresentPage /> },
           { path: 'progress', element: <ProgressPage /> },
