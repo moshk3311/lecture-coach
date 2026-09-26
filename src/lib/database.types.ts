@@ -205,6 +205,7 @@ export type Database = {
           ref_voice: string | null
           ref_word_timings: Json | null
           slide_id: string | null
+          starts_paragraph: boolean
           text: string
           updated_at: string
         }
@@ -219,6 +220,7 @@ export type Database = {
           ref_voice?: string | null
           ref_word_timings?: Json | null
           slide_id?: string | null
+          starts_paragraph?: boolean
           text: string
           updated_at?: string
         }
@@ -233,6 +235,7 @@ export type Database = {
           ref_voice?: string | null
           ref_word_timings?: Json | null
           slide_id?: string | null
+          starts_paragraph?: boolean
           text?: string
           updated_at?: string
         }
@@ -451,7 +454,35 @@ export type Database = {
       }
     }
     Functions: {
+      import_slides: {
+        Args: { p_lecture_id: string; p_slides: Json }
+        Returns: number
+      }
       ping: { Args: never; Returns: string }
+      save_slide_script: {
+        Args: { p_sentences: Json; p_slide_id: string }
+        Returns: {
+          change_notes: Json | null
+          id: string
+          lecture_id: string
+          original_text: string | null
+          position: number
+          ref_audio_path: string | null
+          ref_audio_slow_path: string | null
+          ref_voice: string | null
+          ref_word_timings: Json | null
+          slide_id: string | null
+          starts_paragraph: boolean
+          text: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "sentences"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       [_ in never]: never

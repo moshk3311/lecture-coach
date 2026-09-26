@@ -15,8 +15,8 @@ type LectureFormProps = {
   busyLabel?: string
   error?: string | null
   onCancel?: () => void
-  /** Extra fields rendered between the lecture fields and the buttons. */
-  children?: ReactNode
+  /** Rendered above the lecture fields (e.g. the deck picker). */
+  leading?: ReactNode
 }
 
 export function LectureForm({
@@ -29,7 +29,7 @@ export function LectureForm({
   busyLabel,
   error,
   onCancel,
-  children,
+  leading,
 }: LectureFormProps) {
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -49,6 +49,8 @@ export function LectureForm({
 
   return (
     <form onSubmit={submit} className="space-y-5" noValidate>
+      {leading}
+
       <label className="block">
         <span className="text-sm font-medium">כותרת</span>
         <input
@@ -92,8 +94,6 @@ export function LectureForm({
           />
         </label>
       </div>
-
-      {children}
 
       {shownError ? <Alert>{shownError}</Alert> : null}
 

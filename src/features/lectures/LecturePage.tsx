@@ -1,12 +1,14 @@
-import { LoaderCircle, Pencil, Presentation, Save, Trash2 } from 'lucide-react'
+import { FileUp, LoaderCircle, Pencil, Presentation, Save, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { Alert } from '../../components/Alert'
 import { BackLink } from '../../components/BackLink'
 import { En } from '../../components/En'
 import { stagger } from '../../components/stagger'
 import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
-import { useDeleteLecture, useLectureDeck, useUpdateLecture, type LectureDeck } from './api'
+import { joinScript } from '../../lib/script'
+import { useDeleteLecture, useImportDeck, useLectureDeck, useUpdateLecture, type LectureDeck } from './api'
+import { DeckPicker, type PickedDeck } from './DeckPicker'
 import { LectureForm } from './LectureForm'
 import { toFormValues } from './lectureFields'
 
@@ -159,14 +161,7 @@ function DeleteLecture({ deck, onCancel }: { deck: LectureDeck; onCancel: () => 
 }
 
 function SlideList({ deck }: { deck: LectureDeck }) {
-  if (deck.slides.length === 0) {
-    return (
-      <section className={`${cardStyles} rise-in p-6 md:p-8`} style={stagger(4)}>
-        <h2 className="font-display text-xl font-semibold">שקפים</h2>
-        <p className="mt-2 max-w-prose leading-relaxed text-ink-soft">להרצאה הזו עוד אין שקפים.</p>
-      </section>
-    )
-  }
+  if (deck.slides.length === 0) return <ImportPanel lecture={deck} />
 
   return (
     <section className="rise-in" style={stagger(4)}>
@@ -180,12 +175,48 @@ function SlideList({ deck }: { deck: LectureDeck }) {
                 {slide.title || 'Untitled slide'}
               </En>
               <En as="p" className="mt-1 line-clamp-2 text-sm leading-relaxed text-ink-soft">
-                {slide.sentences.map((s) => s.text).join(' ') || '—'}
+                {joinScript(slide.sentences) || '—'}
               </En>
             </div>
           </li>
         ))}
       </ol>
+    </section>
+  )
+}
+
+function ImportPanel({ lecture }: { lecture: LectureDeck }) {
+  const location = useLocation()
+  const importFailed = (location.state as { importFailed?: boolean } | null)?.importFailed === true
+  const importDeck = useImportDeck()
+  const [picked, setPicked] = useState<PickedDeck | null>(null)
+  const failed = importDeck.isError || (importFailed && importDeck.isIdle)
+
+  return (
+    <section className={`${cardStyles} rise-in max-w-2xl p-6 md:p-8`} style={stagger(4)}>
+      <h2 className="font-display text-xl font-semibold">ייבוא מצגת</h2>
+      <p className="mt-2 mb-5 max-w-prose leading-relaxed text-ink-soft">
+        להרצאה עוד אין שקפים. העלה את קובץ ה-PowerPoint: כל שקף יקבל כותרת, טקסט ותסריט ראשון מהערות הדובר.
+      </p>
+      <DeckPicker value={picked} onChange={setPicked} disabled={importDeck.isPending} />
+      {failed ? (
+        <div className="mt-4">
+          <Alert>ייבוא השקפים נכשל. נסה שוב.</Alert>
+        </div>
+      ) : null}
+      <button
+        type="button"
+        disabled={!picked || importDeck.isPending}
+        onClick={() => picked && importDeck.mutate({ lecture, file: picked.file, deck: picked.deck })}
+        className={`${buttonStyles.primary} mt-5`}
+      >
+        {importDeck.isPending ? (
+          <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />
+        ) : (
+          <FileUp size={18} aria-hidden="true" />
+        )}
+        {importDeck.isPending ? 'מייבא…' : 'ייבא שקפים'}
+      </button>
     </section>
   )
 }
