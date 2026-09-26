@@ -1,14 +1,25 @@
-import { FileUp, LoaderCircle, Pencil, Presentation, Save, Trash2 } from 'lucide-react'
+import { FileUp, ImagePlus, LoaderCircle, Pencil, Presentation, Save, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { Alert } from '../../components/Alert'
 import { BackLink } from '../../components/BackLink'
 import { En } from '../../components/En'
+import { SlideFrame } from '../../components/SlideFrame'
 import { stagger } from '../../components/stagger'
 import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
 import { joinScript } from '../../lib/script'
-import { useDeleteLecture, useImportDeck, useLectureDeck, useUpdateLecture, type LectureDeck } from './api'
+import {
+  useDeleteLecture,
+  useImportDeck,
+  useLectureDeck,
+  useRenderSlideImages,
+  useSlideImageUrls,
+  useUpdateLecture,
+  type LectureDeck,
+} from './api'
 import { DeckPicker, type PickedDeck } from './DeckPicker'
+import { PdfPicker } from './PdfPicker'
+import { SlideImagesError, type RenderProgress, type RenderResult } from './slideImages'
 import { LectureForm } from './LectureForm'
 import { toFormValues } from './lectureFields'
 
@@ -94,6 +105,7 @@ function LectureView({ deck }: { deck: LectureDeck }) {
       {mode === 'edit' ? <EditLecture deck={deck} onDone={() => setMode('view')} /> : null}
       {mode === 'delete' ? <DeleteLecture deck={deck} onCancel={() => setMode('view')} /> : null}
 
+      {hasSlides ? <SlideImagesPanel deck={deck} /> : null}
       <SlideList deck={deck} />
     </>
   )
@@ -163,13 +175,19 @@ function DeleteLecture({ deck, onCancel }: { deck: LectureDeck; onCancel: () => 
 function SlideList({ deck }: { deck: LectureDeck }) {
   if (deck.slides.length === 0) return <ImportPanel lecture={deck} />
 
+  return <SlideRows deck={deck} />
+}
+
+function SlideRows({ deck }: { deck: LectureDeck }) {
+  const { data: urls } = useSlideImageUrls(deck)
+
   return (
-    <section className="rise-in" style={stagger(4)}>
+    <section className="rise-in" style={stagger(5)}>
       <h2 className="mb-4 font-display text-xl font-semibold">שקפים</h2>
       <ol className="grid grid-cols-1 gap-3">
         {deck.slides.map((slide) => (
-          <li key={slide.id} className={`${cardStyles} flex gap-4 p-4 md:p-5`}>
-            <span className="w-7 shrink-0 pt-0.5 text-center font-mono text-sm text-ink-faint">{slide.position}</span>
+          <li key={slide.id} className={`${cardStyles} flex gap-3 p-3 sm:gap-4 sm:p-4`}>
+            <span className="w-6 shrink-0 pt-0.5 text-center font-mono text-sm text-ink-faint">{slide.position}</span>
             <div className="min-w-0 flex-1">
               <En as="h3" className="block truncate font-medium">
                 {slide.title || 'Untitled slide'}
@@ -178,10 +196,115 @@ function SlideList({ deck }: { deck: LectureDeck }) {
                 {joinScript(slide.sentences) || '—'}
               </En>
             </div>
+            <SlideFrame
+              imageUrl={slide.image_path ? urls?.get(slide.image_path) : null}
+              title={slide.title}
+              className="w-24 shrink-0 self-start sm:w-32"
+            />
           </li>
         ))}
       </ol>
     </section>
+  )
+}
+
+function SlideImagesPanel({ deck }: { deck: LectureDeck }) {
+  const location = useLocation()
+  const imagesFailed = (location.state as { imagesFailed?: boolean } | null)?.imagesFailed === true
+  const render = useRenderSlideImages()
+  const [pdf, setPdf] = useState<File | null>(null)
+  const [progress, setProgress] = useState<RenderProgress | null>(null)
+  const [result, setResult] = useState<RenderResult | null>(null)
+  const withImages = deck.slides.filter((s) => s.image_path).length
+  const [open, setOpen] = useState(withImages === 0)
+
+  function run() {
+    if (!pdf) return
+    setResult(null)
+    render.mutate(
+      { lecture: deck, pdf, onProgress: setProgress },
+      {
+        onSuccess: (r) => {
+          setResult(r)
+          setPdf(null)
+          setOpen(false)
+        },
+        onSettled: () => setProgress(null),
+      },
+    )
+  }
+
+  const failed = render.isError || (imagesFailed && render.isIdle)
+  const errorText =
+    render.error instanceof SlideImagesError ? render.error.message : 'יצירת תמונות השקפים נכשלה. נסה שוב.'
+
+  return (
+    <section className={`${cardStyles} rise-in mb-8 p-5 md:p-6`} style={stagger(4)}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold">תמונות השקפים</h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            {withImages === 0
+              ? 'עוד אין תמונות. בינתיים מצב מציג מראה את כותרת השקף והטקסט שלו.'
+              : `יש תמונות ל-${withImages} מתוך ${deck.slides.length} שקפים.`}
+          </p>
+        </div>
+        {!open && !render.isPending ? (
+          <button type="button" onClick={() => setOpen(true)} className={`${buttonStyles.secondary} h-10 text-sm`}>
+            <ImagePlus size={16} aria-hidden="true" />
+            {withImages ? 'עדכן מ-PDF' : 'הוסף מ-PDF'}
+          </button>
+        ) : null}
+      </div>
+
+      {open || render.isPending ? (
+        <div className="mt-4 border-t border-rule pt-4">
+          <p className="max-w-prose text-sm leading-relaxed text-ink-soft">
+            ייצא את המצגת ל-PDF (ב-PowerPoint: קובץ ← שמירה בשם ← PDF) והעלה אותו כאן. כל עמוד הופך לתמונה של השקף
+            באותו מספר. ההמרה נעשית במכשיר שלך.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <PdfPicker value={pdf} onChange={setPdf} disabled={render.isPending} />
+            <button type="button" disabled={!pdf || render.isPending} onClick={run} className={`${buttonStyles.primary} h-10 text-sm`}>
+              {render.isPending ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : null}
+              {render.isPending ? 'יוצר תמונות…' : 'צור תמונות'}
+            </button>
+            {withImages && !render.isPending ? (
+              <button type="button" onClick={() => setOpen(false)} className={`${buttonStyles.ghost} h-10 text-sm`}>
+                ביטול
+              </button>
+            ) : null}
+          </div>
+          {progress ? <ProgressBar progress={progress} /> : null}
+        </div>
+      ) : null}
+
+      {failed ? (
+        <div className="mt-4">
+          <Alert>{errorText}</Alert>
+        </div>
+      ) : null}
+      {result && result.pages !== result.slides ? (
+        <p className="mt-3 text-sm text-warn">
+          ב-PDF יש {result.pages} עמודים ובמצגת {result.slides} שקפים, אז התמונות הותאמו לפי הסדר. אם יש שקפים מוסתרים,
+          ייצא PDF בלעדיהם.
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
+function ProgressBar({ progress }: { progress: RenderProgress }) {
+  const percent = progress.total ? Math.round((progress.done / progress.total) * 100) : 0
+  return (
+    <div className="mt-4" role="status">
+      <p className="text-sm text-ink-soft">
+        מעבד שקף {Math.min(progress.done + 1, progress.total)} מתוך {progress.total}…
+      </p>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rule">
+        <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${percent}%` }} />
+      </div>
+    </div>
   )
 }
 

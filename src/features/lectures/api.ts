@@ -4,6 +4,7 @@ import type { ParsedDeck } from '../../lib/pptx'
 import { supabase } from '../../lib/supabase'
 import { slideImagesFolder } from '../../lib/storagePaths'
 import { importDeck } from './importDeck'
+import { renderSlideImages, type RenderProgress } from './slideImages'
 
 export type Lecture = Tables<'lectures'>
 export type Slide = Tables<'slides'>
@@ -86,6 +87,32 @@ export function useImportDeck() {
     mutationFn: ({ lecture, file, deck }: { lecture: Lecture; file: File; deck: ParsedDeck }) => importDeck(lecture, file, deck),
     // Prefix match: the list (slide counts) and this lecture's deck.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: lectureKeys.all }),
+  })
+}
+
+/** Renders a PDF export of the deck into slide images. */
+export function useRenderSlideImages() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ lecture, pdf, onProgress }: { lecture: LectureDeck; pdf: File; onProgress: (p: RenderProgress) => void }) =>
+      renderSlideImages(lecture, pdf, onProgress),
+    onSettled: (_, __, { lecture }) => queryClient.invalidateQueries({ queryKey: lectureKeys.detail(lecture.id) }),
+  })
+}
+
+/** Signed URLs for the deck's slide images, by storage path (private bucket, valid for an hour). */
+export function useSlideImageUrls(deck: LectureDeck | null | undefined) {
+  const paths = deck?.slides.flatMap((slide) => (slide.image_path ? [slide.image_path] : [])) ?? []
+  return useQuery({
+    queryKey: ['slide-images', deck?.id, paths],
+    enabled: paths.length > 0,
+    staleTime: 50 * 60_000,
+    gcTime: 55 * 60_000,
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await supabase.storage.from('slides').createSignedUrls(paths, 60 * 60)
+      if (error) throw error
+      return new Map(data.flatMap((item) => (item.path && item.signedUrl ? [[item.path, item.signedUrl] as const] : [])))
+    },
   })
 }
 
