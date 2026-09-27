@@ -35,7 +35,7 @@ A personal app for improving English lecturing skills over time: co-write the sc
 | "Sounds off to an American ear" detection | Gemini **listens to the raw audio**, not the transcript | Transcription can silently "fix" errors; listening catches phrasing, grammar, pronunciation and intonation as a US listener hears them. | Gemini timestamps are approximate → anchored to Azure word timings. Audio is sent to Google (free tier). |
 | Backend | Supabase (Postgres, Auth, Storage, Edge Functions) | Familiar; keeps API keys server-side; RLS. | Free-tier caps (projects, storage, inactivity pausing). |
 | Frontend hosting | GitHub Pages | Free, familiar. | SPA routing → use `HashRouter`. |
-| Slide images (MVP, Sprint 1) | LibreOffice headless on the existing Hetzner VPS | Faithful PPTX rendering, no extra cost. | One more small service. Fallback: user uploads a PDF export → PDF.js. |
+| Slide images (Sprint 1) | The owner uploads a PDF export of the deck; PDF.js renders it in the browser | No server, no cost; PowerPoint's own PDF is the most faithful rendering. | One extra export step per deck. A LibreOffice converter on a VPS was considered and dropped (Sprint 1). |
 | Feedback timing | After each recording | Simpler, more accurate, cheaper than streaming analysis. | No live cues while speaking. |
 | Provider abstraction | `SpeechProvider` / `LlmProvider` interfaces | Swap Gemini → Claude API (or Azure → self-hosted) later without rewrites. | Slight upfront structure. |
 | Coach tips source | The owner's NotebookLM notebook, imported by Claude on request into a private `coach_tips` table | Tips come from talks the owner chose; rules pick them from measured data, so they show even when Gemini fails. | The app cannot read NotebookLM → catalog updates are manual. Tip content stays in the DB, not in this public repo. |
@@ -56,11 +56,11 @@ A personal app for improving English lecturing skills over time: co-write the sc
          │ supabase-js (user JWT)       │ short-lived Azure token (10 min)
 ┌────────▼──────────────── Supabase ────▼────────────────────────────────┐
 │ Postgres + RLS │ Storage (private) │ Auth (magic link)                  │
-│ Edge Functions: azure-token · ai · slides-convert (Sprint 1)            │
-└────────┬──────────────────┬───────────────────────┬────────────────────┘
-         ▼                  ▼                       ▼
-   Azure Speech        Gemini API            Hetzner VPS converter
-   (token endpoint)    (text + audio)        (LibreOffice → PNG)
+│ Edge Functions: azure-token · ai                                        │
+└────────┬──────────────────┬───────────────────────────────────────────┘
+         ▼                  ▼
+   Azure Speech        Gemini API
+   (token endpoint)    (text + audio)
 ```
 
 **Core loop (after each recording):**
@@ -77,8 +77,6 @@ A personal app for improving English lecturing skills over time: co-write the sc
 **Frontend:** React, Vite, TypeScript (strict), Tailwind CSS, React Router (`HashRouter`), TanStack Query, Zustand (recording/session state), Recharts, JSZip (PPTX parsing), `microsoft-cognitiveservices-speech-sdk`, `vite-plugin-pwa`, `@supabase/supabase-js`, Vitest.
 
 **Backend:** Supabase Edge Functions (Deno/TypeScript), Postgres, Storage, Auth (email magic link, single user).
-
-**Converter (Sprint 1):** Docker container on Hetzner — LibreOffice + poppler-utils + a minimal HTTP service, behind the existing reverse proxy with HTTPS.
 
 Pin exact versions in Sprint 0 (check current stable releases).
 
@@ -228,7 +226,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 
 **Memorization levels** (per slide, remembered): L0 full text · L1 every 3rd word blanked · L2 first letters only · L3 keywords only (3–6, chosen by Gemini, cached) · L4 no script. "Peek" shows the full text briefly.
 
-**Slides source:** PNGs from the Hetzner converter; fallback (built first, Sprint 1) = user uploads a PDF export, rendered in the browser with PDF.js at 1600 px (WebP where the browser encodes it, else PNG). Without images the view shows the slide title and text.
+**Slides source:** the owner uploads a PDF export of the deck; the browser renders each page with PDF.js at 1600 px (WebP where the browser encodes it, else PNG). Without images the view shows the slide title and text.
 
 **Full-run rehearsal ("Record take"):** starts the timer and continuous recognition together, with the concatenated script as reference text; every slide change is timestamped. Stop (R) or Esc ends the take → upload → report.
 
@@ -499,10 +497,6 @@ Prompt rule for corrections: "Listen as a native American listener. Quote exactl
 ```
 Prompt rule for tips: "Anchor every tip to one moment you heard. Use only slugs from the catalog for notebook tips. Never present your own advice as coming from the notebook."
 
-### `slides-convert` (Sprint 1)
-`POST { lecture_id }` → `{ pages }`
-Creates a signed download URL for the PPTX and signed upload URLs for the pages, then calls `CONVERTER_URL` with `CONVERTER_SECRET`. The converter runs `soffice --headless --convert-to pdf` → `pdftoppm -png -r 110`, uploads PNGs, returns the page count. The function updates `slides.image_path`.
-
 ---
 
 ## 8. Prompts (initial drafts)
@@ -542,7 +536,6 @@ Store in `supabase/functions/ai/prompts/` and version them.
 | Supabase (free) | project count, DB/storage caps, pause on inactivity | audio is the main storage | retention job |
 | Gmail SMTP (login emails) | ~500 emails/day | a few per week | Auth rate limit 30/hour |
 | GitHub Pages | free | static hosting | — |
-| Hetzner VPS | already paid | converter container | — |
 
 ---
 
@@ -553,13 +546,13 @@ For each sprint: plan → approval → build → demo checklist → update Statu
 **MVP = Sprints 0–2:** presenter view + full-run recording + run report. Sentence-level drilling comes after.
 
 ### Sprint 0 — Setup
-**Prerequisites (user):** Azure account + Speech resource F0 · Gemini API key · Supabase project (new, or an existing one if the free project limit is reached) · GitHub repo · Hetzner VPS access. See Appendix A.
+**Prerequisites (user):** Azure account + Speech resource F0 · Gemini API key · Supabase project (new, or an existing one if the free project limit is reached) · GitHub repo. See Appendix A.
 **Tasks:** scaffold Vite + React + TS + Tailwind · RTL layout (bottom nav on mobile, sidebar on desktop) · Supabase client + magic-link auth · all migrations + RLS + views · GitHub Actions deploy to Pages · PWA manifest and icons · set secrets · `azure-token` function.
 **Acceptance:** login works on phone and desktop · deployed URL live · `azure-token` returns a token when logged in and 401 otherwise.
 
 ### Sprint 1 — Lecture import + Presenter view (MVP 1/2)
-**Tasks:** lectures CRUD · PPTX import (order, text, speaker notes → initial script) tested on 2 real decks · Hetzner converter container + `slides-convert` (PDF.js fallback) · presenter view per §5.7: current + next slide, script on the right, transition line, timer with planned windows and status colors, inline edit / revert / export, shortcuts + clicker + swipe, memorization levels L0–L2 and L4 · phone portrait/landscape layouts.
-**Acceptance:** upload a real PPTX → slides render → rehearse the whole deck (no recording yet) with timer, planned windows, next-slide preview, editing and memorization levels, on desktop and phone landscape.
+**Tasks:** lectures CRUD · PPTX import (order, text, speaker notes → initial script) tested on 2 real decks · slide images from a PDF export (PDF.js) · presenter view per §5.7: current + next slide, script on the right, transition line, timer with planned windows and status colors, inline edit / revert / export, shortcuts + clicker + swipe, memorization levels L0–L2 and L4 · phone portrait/landscape layouts.
+**Acceptance:** upload a real PPTX (+ its PDF export) → slides render → rehearse the whole deck (no recording yet) with timer, planned windows, next-slide preview, editing and memorization levels, on desktop and phone landscape.
 
 ### Sprint 2 — Full-run recording + Run report (MVP 2/2)
 **Tasks:** AudioWorklet capture + WAV encoder · continuous pronunciation assessment with the concatenated script · slide-change timestamps · typed result parser + derived metrics (unit tests) · Storage upload + `save_attempt` (mode `full_run`) · `ai` function: `run_report` (audio via Files API, incl. corrections) + `keywords` (enables memorization L3) · basic TTS for correction phrases + cache · audio slicing with Azure/Gemini time anchoring · run report page per §5.7 incl. Corrections cards · run history per lecture · Azure usage meter · short spike report: filler detection, iOS installed-PWA mic, prosody availability in the region, noise suppression on/off, accuracy of Gemini timestamps.
@@ -579,7 +572,7 @@ For each sprint: plan → approval → build → demo checklist → update Statu
 **Acceptance:** sentence result in ≤ 3 s on iPhone (installed PWA) and desktop · feedback after each recording (or graceful fallback) · weak words update · dashboard shows trends across ≥ 3 days (seed data for dev).
 
 ### Backlog (revisit as the app grows)
-Claude API as an alternative `LlmProvider` · compressed audio storage (Opus) · spaced-repetition scheduling for weak items · exportable progress report · self-hosted scoring on Hetzner if Azure limits become a problem.
+Claude API as an alternative `LlmProvider` · compressed audio storage (Opus) · spaced-repetition scheduling for weak items · exportable progress report · self-hosted scoring on a VPS if Azure limits become a problem · automatic PPTX → images (LibreOffice on a VPS) if the PDF export step gets tedious.
 
 ---
 
@@ -601,8 +594,7 @@ lecture-coach/
 ├─ public/              # icons, audio-worklet processor
 ├─ supabase/
 │  ├─ migrations/
-│  └─ functions/ azure-token/ ai/ slides-convert/
-├─ converter/           # Dockerfile + server (Sprint 1)
+│  └─ functions/ azure-token/ ai/
 ├─ private/             # gitignored: coach-tips working copy (§5.8)
 └─ .github/workflows/deploy.yml
 ```
@@ -613,7 +605,7 @@ lecture-coach/
 
 **Client (`.env`):** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (publishable key).
 
-**Supabase secrets:** `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `CONVERTER_URL`, `CONVERTER_SECRET`.
+**Supabase secrets:** `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `GEMINI_API_KEY`, `GEMINI_MODEL`.
 
 ---
 

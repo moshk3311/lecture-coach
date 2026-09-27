@@ -30,7 +30,7 @@ supabase secrets set KEY=value           # set server secrets
 - [ ] Sprint 0 — Setup · code, DB, `azure-token`, deploy and auth settings done (login emails via Gmail SMTP); login works on desktop; waiting on the Azure and Gemini secrets and a login check on the phone
   - Supabase project: `lecture-coach` (`gzppgmoegcsdtovcdkmy`, eu-central-1). Migrations applied via the Supabase MCP; local file names match the remote versions.
   - Verified limits and API behavior: ARCHITECTURE Appendix B.
-- [ ] Sprint 1 — Lecture import + Presenter view (MVP 1/2) · built: lectures CRUD, PPTX import (tested on 2 real decks), slide images from a PDF export (PDF.js), presenter view; waiting on the owner's demo check (desktop + phone) and a decision on the Hetzner converter (PDF-only until then)
+- [ ] Sprint 1 — Lecture import + Presenter view (MVP 1/2) · built: lectures CRUD, PPTX import (tested on 2 real decks), slide images from a PDF export (PDF.js), presenter view; waiting on the owner's demo check (desktop + phone). Slide images come from a PDF export; the VPS converter was dropped (no server)
   - Migration `20260926204005_slide_scripts` applied via the Supabase MCP. Test decks: the owner's Google Drive folder "מקנזי" (PPTX + Google Slides); download into `private/decks/` (gitignored) for the local-only parser test.
 - [ ] Sprint 2 — Full-run recording + Run report (MVP 2/2)
 - [ ] Sprint 2b — Coach tips in the run report · tips draft (44, from the NotebookLM notebook "Storytelling") waiting for approval; working copy in `private/coach-tips/` (gitignored, so it is not in cloud sessions: keep a copy)
