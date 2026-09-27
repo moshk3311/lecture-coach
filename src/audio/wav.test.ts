@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseWav } from './wav'
+import { concatPcm, encodeWav, parseWav } from './wav'
 
 type Chunk = { id: string; bytes: Uint8Array; declaredSize?: number }
 
@@ -62,5 +62,16 @@ describe('parseWav', () => {
 
   it('rejects buffers that are not WAV', () => {
     expect(() => parseWav(new TextEncoder().encode('ID3 not a wav file').buffer)).toThrow('Not a RIFF/WAVE buffer')
+  })
+})
+
+describe('encodeWav', () => {
+  it('round-trips through parseWav', () => {
+    const pcm = concatPcm([Int16Array.from([1, -2, 3]), Int16Array.from([32767, -32768])])
+    const wav = encodeWav(pcm, 16000)
+    expect(wav.byteLength).toBe(44 + 10)
+    const parsed = parseWav(wav)
+    expect(parsed).toMatchObject({ sampleRate: 16000, channels: 1, bitsPerSample: 16 })
+    expect(new Int16Array(parsed.data)).toEqual(pcm)
   })
 })
