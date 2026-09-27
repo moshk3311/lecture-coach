@@ -6,6 +6,9 @@ export type Stopwatch = {
   started: boolean
   toggle: () => void
   reset: () => void
+  /** From zero, running (a take starts the clock). */
+  restart: () => void
+  pause: () => void
 }
 
 /** Total rehearsal time; survives pauses, ticks four times a second while running. */
@@ -40,8 +43,25 @@ export function useStopwatch(): Stopwatch {
     setStartedAt(null)
   }, [])
 
+  const restart = useCallback(() => {
+    const t = performance.now()
+    setNow(t)
+    setAccumulated(0)
+    setStartedAt(t)
+    setRunning(true)
+  }, [])
+
+  const pause = useCallback(() => {
+    if (!running || startedAt === null) return
+    const t = performance.now()
+    setNow(t)
+    setAccumulated((a) => a + (t - startedAt))
+    setStartedAt(null)
+    setRunning(false)
+  }, [running, startedAt])
+
   const elapsedMs = accumulated + (running && startedAt !== null ? Math.max(0, now - startedAt) : 0)
-  return { elapsedMs, running, started: running || accumulated > 0, toggle, reset }
+  return { elapsedMs, running, started: running || accumulated > 0, toggle, reset, restart, pause }
 }
 
 /** The current time, refreshed every `intervalMs`. */
