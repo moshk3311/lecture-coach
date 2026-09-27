@@ -32,7 +32,8 @@ supabase secrets set KEY=value           # set server secrets
   - Verified limits and API behavior: ARCHITECTURE Appendix B.
 - [ ] Sprint 1 — Lecture import + Presenter view (MVP 1/2) · built: lectures CRUD, PPTX import (tested on 2 real decks), slide images from a PDF export (PDF.js), presenter view; waiting on the owner's demo check (desktop + phone). Slide images come from a PDF export; the VPS converter was dropped (no server)
   - Migration `20260926204005_slide_scripts` applied via the Supabase MCP. Test decks: the owner's Google Drive folder "מקנזי" (PPTX + Google Slides); download into `private/decks/` (gitignored) for the local-only parser test.
-- [ ] Sprint 2 — Full-run recording + Run report (MVP 2/2)
+- [ ] Sprint 2 — Full-run recording + Run report (MVP 2/2) · built without keys: take recording (AudioWorklet, 16 kHz WAV) with slide timestamps, `save_attempt`, timing and speech metrics, run report, run history, Azure usage meter, assessment of a saved take (Azure continuous mode, untested until the keys exist); waiting on the Azure and Gemini secrets for: assessment check, `ai` (`run_report`, `keywords`), correction TTS and audio slicing, spike report
+  - Migration `20260927161100_save_attempt` applied via the Supabase MCP.
 - [ ] Sprint 2b — Coach tips in the run report · tips draft (44, from the NotebookLM notebook "Storytelling") waiting for approval; working copy in `private/coach-tips/` (gitignored, so it is not in cloud sessions: keep a copy)
 - [ ] Sprint 3 — Script Studio + reference audio
 - [ ] Sprint 4 — Sentence practice, AI feedback, progress

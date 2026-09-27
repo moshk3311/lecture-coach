@@ -181,7 +181,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 
 ### 5.6 Progress
 - **Dashboard:** Pronunciation score trend (daily avg) · Accuracy / Fluency / Prosody lines · minutes practiced per week · weakest sounds (phoneme avg accuracy) · weakest words · mastered count · Azure usage meter (minutes this month / cap).
-- **Weak item rule:** after each attempt, every word with accuracy < 70 or `ErrorType ≠ None` is upserted (occurrences + 1, rolling average, last 5 scores). An item becomes `mastered` when its last 3 scores are ≥ 85.
+- **Weak item rule:** after each attempt, every word with accuracy < 70 or `ErrorType` Mispronunciation/Omission is upserted (occurrences + 1, rolling average, last 5 scores); insertions are skipped. A good score on a word that is already weak is recorded too. An item becomes `mastered` when its last 3 scores are ≥ 85. Counted once per attempt, so a re-saved assessment does not count twice.
 - Phoneme stats come from `word_results.phonemes` via a SQL view.
 
 ### 5.7 Presentation Mode — Presenter View (MVP)
@@ -228,7 +228,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 
 **Slides source:** the owner uploads a PDF export of the deck; the browser renders each page with PDF.js at 1600 px (WebP where the browser encodes it, else PNG). Without images the view shows the slide title and text.
 
-**Full-run rehearsal ("Record take"):** starts the timer and continuous recognition together, with the concatenated script as reference text; every slide change is timestamped. Stop (R) or Esc ends the take → upload → report.
+**Full-run rehearsal ("Record take"):** starts the timer and the recording together; every slide change is timestamped on the audio clock. Stop (R) or Esc ends the take → upload → report. The recording is then assessed with continuous recognition (the concatenated script as reference text), after the take rather than live, so a take survives an Azure failure or an exhausted quota and can be re-assessed. A take stops by itself just under the 50 MB upload limit (16 kHz mono WAV ≈ 26 minutes).
 
 **Run report** (a page per take, listed in the lecture's run history): total time vs target · time per slide vs planned window · WPM per slide (target band 130–160) · fillers per minute · long pauses · script coverage (omissions/insertions) · prosody/monotone flags · weakest words · Gemini delivery feedback (tone, energy, clarity) · **Corrections** (below).
 
@@ -431,7 +431,7 @@ create table coach_tips (                          -- §5.8, imported from Noteb
 **RPC** (all `security invoker`):
 - `import_slides(p_lecture_id, p_slides jsonb)` — a new deck's slides and their first sentences, in one transaction.
 - `save_slide_script(p_slide_id, p_sentences jsonb)` — replaces a slide's sentences with an ordered list; an `id` keeps that sentence, `null` inserts one.
-- `save_attempt(payload jsonb)` — inserts attempt + word results and upserts weak items atomically.
+- `save_attempt(payload jsonb)` — updates or inserts an attempt by its client-generated id, replaces its word results and upserts weak items, in one transaction. A take is saved in two calls: the recording and timing first, the assessment later.
 
 **Storage (all private, signed URLs):**
 - `recordings/{user_id}/{attempt_id}.wav`
