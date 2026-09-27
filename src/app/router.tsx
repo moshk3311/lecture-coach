@@ -31,6 +31,10 @@ export const router = createHashRouter([
             path: 'lectures/:id',
             lazy: async () => ({ Component: (await import('../features/lectures/LecturePage')).LecturePage }),
           },
+          {
+            path: 'lectures/:id/runs/:runId',
+            lazy: async () => ({ Component: (await import('../features/runs/RunReportPage')).RunReportPage }),
+          },
           { path: 'practice', element: <PracticePage /> },
           { path: 'present', element: <PresentPage /> },
           { path: 'progress', element: <ProgressPage /> },

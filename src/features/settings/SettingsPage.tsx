@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { stagger } from '../../components/stagger'
 import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
 import { useAuth } from '../auth/useAuth'
+import { UsageMeter } from '../runs/UsageMeter'
 import { AzureCheck } from './AzureCheck'
 import { DEFAULT_SETTINGS, useUserSettings } from './useUserSettings'
 
@@ -50,6 +51,10 @@ export function SettingsPage() {
         </section>
 
         <div className="rise-in md:col-span-2" style={stagger(5)}>
+          <UsageMeter />
+        </div>
+
+        <div className="rise-in md:col-span-2" style={stagger(6)}>
           <AzureCheck voice={settings.voice} />
         </div>
       </div>

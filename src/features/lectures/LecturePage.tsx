@@ -23,6 +23,7 @@ import {
 import { DeckPicker, type PickedDeck } from './DeckPicker'
 import { PdfPicker } from './PdfPicker'
 import { PlannedTime } from './PlannedTime'
+import { RunHistory } from '../runs/RunHistory'
 import { SlideImagesError, type RenderProgress, type RenderResult } from './slideImages'
 import { LectureForm } from './LectureForm'
 import { toFormValues } from './lectureFields'
@@ -110,6 +111,7 @@ function LectureView({ deck }: { deck: LectureDeck }) {
       {mode === 'delete' ? <DeleteLecture deck={deck} onCancel={() => setMode('view')} /> : null}
 
       {hasSlides ? <SlideImagesPanel deck={deck} /> : null}
+      {hasSlides ? <RunHistory lectureId={deck.id} /> : null}
       <SlideList deck={deck} />
     </>
   )
@@ -196,7 +198,7 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
   const total = windows.at(-1)?.end ?? 0
 
   return (
-    <section className="rise-in" style={stagger(5)}>
+    <section className="rise-in mt-8" style={stagger(5)}>
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="font-display text-xl font-semibold">שקפים</h2>
         <p className="text-sm text-ink-soft">
