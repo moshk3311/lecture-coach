@@ -459,6 +459,7 @@ export type Database = {
         Returns: number
       }
       ping: { Args: never; Returns: string }
+      save_attempt: { Args: { p: Json }; Returns: string }
       save_slide_script: {
         Args: { p_sentences: Json; p_slide_id: string }
         Returns: {
