@@ -92,4 +92,55 @@ export const azureSpeechProvider: SpeechProvider = {
       recognizer.close()
     }
   },
+
+  // Continuous mode for audio over 30 s. enableMiscue is not supported there (Appendix B), so
+  // omissions and insertions come from aligning the words with the script (lib/metrics).
+  async assessContinuous({ pcm, referenceText, onProgress }) {
+    const [sdk, { token, region }] = await Promise.all([loadSdk(), getAzureToken()])
+    const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(token, region)
+    speechConfig.speechRecognitionLanguage = LOCALE
+
+    const stream = sdk.AudioInputStream.createPushStream(sdk.AudioStreamFormat.getWaveFormatPCM(16000, 16, 1))
+    stream.write(pcm)
+    stream.close()
+
+    const recognizer = new sdk.SpeechRecognizer(speechConfig, sdk.AudioConfig.fromStreamInput(stream))
+    const assessment = new sdk.PronunciationAssessmentConfig(
+      referenceText,
+      sdk.PronunciationAssessmentGradingSystem.HundredMark,
+      sdk.PronunciationAssessmentGranularity.Phoneme,
+      false,
+    )
+    assessment.enableProsodyAssessment = true
+    assessment.phonemeAlphabet = 'IPA'
+    assessment.nbestPhonemeCount = 5
+    assessment.applyTo(recognizer)
+
+    const segments: unknown[] = []
+    recognizer.recognized = (_sender, event) => {
+      if (event.result.reason !== sdk.ResultReason.RecognizedSpeech) return
+      segments.push(JSON.parse(event.result.properties.getProperty(sdk.PropertyId.SpeechServiceResponse_JsonResult)) as unknown)
+      onProgress?.((event.result.offset + event.result.duration) / TICKS_PER_MS / 1000)
+    }
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        recognizer.canceled = (_sender, event) => {
+          // The end of the pushed audio also arrives as a cancellation (EndOfStream).
+          if (event.reason === sdk.CancellationReason.Error) {
+            reject(new SpeechServiceError(`Azure ביטל את ההערכה: ${event.errorDetails || 'סיבה לא ידועה'}`))
+          } else resolve()
+        }
+        recognizer.sessionStopped = () => resolve()
+        recognizer.startContinuousRecognitionAsync(
+          () => {},
+          (err) => reject(new SpeechServiceError(`לא הצלחתי להתחיל הערכה: ${err}`)),
+        )
+      })
+      await new Promise<void>((resolve) => recognizer.stopContinuousRecognitionAsync(resolve, () => resolve()))
+      return { segments }
+    } finally {
+      recognizer.close()
+    }
+  },
 }

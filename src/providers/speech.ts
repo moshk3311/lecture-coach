@@ -31,8 +31,20 @@ export type AssessmentResult = {
   raw: unknown
 }
 
+export type ContinuousAssessmentRequest = AssessmentRequest & {
+  /** Seconds of audio assessed so far, for a progress bar. */
+  onProgress?: (seconds: number) => void
+}
+
+export type ContinuousAssessmentResult = {
+  /** The provider's JSON for each recognized segment, in order (kept in attempts.azure_raw). */
+  segments: unknown[]
+}
+
 export interface SpeechProvider {
   synthesize(request: SynthesisRequest): Promise<SynthesisResult>
   /** Scripted pronunciation assessment of one short utterance (≤ 30 s). */
   assessOnce(request: AssessmentRequest): Promise<AssessmentResult>
+  /** Scripted assessment of a long recording (a full run), segment by segment. */
+  assessContinuous(request: ContinuousAssessmentRequest): Promise<ContinuousAssessmentResult>
 }
