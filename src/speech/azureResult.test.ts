@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { utteranceScores } from './azureResult'
+import { assessedWords, combinedScores, recognizedText, utteranceScores } from './azureResult'
 
 // Trimmed from a real scripted-assessment response (Speech SDK, en-US, prosody on).
 const SAMPLE = {
@@ -57,5 +57,73 @@ describe('utteranceScores', () => {
     expect(utteranceScores(null)).toEqual(empty)
     expect(utteranceScores({ NBest: [] })).toEqual(empty)
     expect(utteranceScores({ NBest: [{ PronunciationAssessment: { PronScore: 'high' } }] })).toEqual(empty)
+  })
+})
+
+// Two segments in the documented continuous-mode shape (enableMiscue is off there).
+const SEGMENTS = [
+  {
+    DisplayText: 'Good morning.',
+    Offset: 1_000_000,
+    Duration: 10_000_000,
+    NBest: [
+      {
+        PronunciationAssessment: { AccuracyScore: 90, FluencyScore: 80, CompletenessScore: 100, PronScore: 86, ProsodyScore: 70 },
+        Words: [
+          {
+            Word: 'good',
+            Offset: 1_000_000,
+            Duration: 3_000_000,
+            PronunciationAssessment: { AccuracyScore: 95, ErrorType: 'None' },
+            Phonemes: [
+              {
+                Phoneme: 'ɡ',
+                PronunciationAssessment: { AccuracyScore: 98, NBestPhonemes: [{ Phoneme: 'ɡ', Score: 98 }, { Phoneme: 'k', Score: 20 }] },
+              },
+            ],
+          },
+          { Word: 'morning', Offset: 4_500_000, Duration: 5_000_000, PronunciationAssessment: { AccuracyScore: 60, ErrorType: 'Mispronunciation' } },
+        ],
+      },
+    ],
+  },
+  {
+    DisplayText: 'Thanks.',
+    Offset: 20_000_000,
+    Duration: 30_000_000,
+    NBest: [
+      {
+        PronunciationAssessment: { AccuracyScore: 70, FluencyScore: 100, CompletenessScore: 100, PronScore: 78 },
+        Words: [{ Word: 'thanks', Offset: 21_000_000, Duration: 4_000_000, PronunciationAssessment: { AccuracyScore: 70, ErrorType: 'None' } }],
+      },
+    ],
+  },
+]
+
+describe('assessedWords', () => {
+  it('flattens segment words into milliseconds with phoneme details', () => {
+    const words = assessedWords(SEGMENTS)
+    expect(words.map((w) => [w.word, w.offsetMs, w.durationMs, w.accuracy, w.errorType])).toEqual([
+      ['good', 100, 300, 95, 'None'],
+      ['morning', 450, 500, 60, 'Mispronunciation'],
+      ['thanks', 2100, 400, 70, 'None'],
+    ])
+    expect(words[0]?.phonemes).toEqual([{ phoneme: 'ɡ', accuracy: 98, nbest: [{ phoneme: 'ɡ', score: 98 }, { phoneme: 'k', score: 20 }] }])
+  })
+
+  it('ignores malformed input', () => {
+    expect(assessedWords([null, { NBest: 'x' }, { NBest: [{ Words: [{}] }] }])).toEqual([])
+  })
+})
+
+describe('combinedScores', () => {
+  it('weights each segment by its duration and skips missing scores', () => {
+    expect(combinedScores(SEGMENTS)).toEqual({ pron: 80, accuracy: 75, fluency: 95, completeness: 100, prosody: 70 })
+  })
+})
+
+describe('recognizedText', () => {
+  it('joins the segments', () => {
+    expect(recognizedText(SEGMENTS)).toBe('Good morning. Thanks.')
   })
 })
