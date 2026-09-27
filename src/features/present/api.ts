@@ -56,7 +56,9 @@ export function useScriptSaver(lectureId: string) {
               p_sentences: planScriptSave(slide.sentences, sentences),
             })
             if (error) {
-              failed.current.set(slideId, next)
+              // Keep the newest text for "retry": an edit queued behind the failed save must not be lost.
+              failed.current.set(slideId, pending.current.get(slideId) ?? next)
+              pending.current.delete(slideId)
               mark('error')
               break
             }

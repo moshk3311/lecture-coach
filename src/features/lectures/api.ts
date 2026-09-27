@@ -129,6 +129,9 @@ export function useSlideImageUrls(deck: LectureDeck | null | undefined) {
     enabled: paths.length > 0,
     staleTime: 50 * 60_000,
     gcTime: 55 * 60_000,
+    // A long rehearsal outlives the links: renew them before they expire.
+    refetchInterval: 45 * 60_000,
+    refetchIntervalInBackground: true,
     queryFn: async (): Promise<Map<string, string>> => {
       const { data, error } = await supabase.storage.from('slides').createSignedUrls(paths, 60 * 60)
       if (error) throw error
