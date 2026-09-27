@@ -22,3 +22,8 @@ export function slideImagePath(
 ): string {
   return `${slideImagesFolder(userId, lectureId)}/${position}-${version}.${ext}`
 }
+
+/** A take or sentence recording (16 kHz mono WAV). */
+export function recordingPath(userId: string, attemptId: string): string {
+  return `${userId}/${attemptId}.wav`
+}

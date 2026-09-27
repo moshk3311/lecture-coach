@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CircleDot,
+  LoaderCircle,
   Download,
   Eye,
   Maximize,
@@ -9,6 +10,7 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Square,
   Undo2,
   X,
 } from 'lucide-react'
@@ -22,12 +24,16 @@ import { buttonStyles, kickerStyles } from '../../components/styles'
 import { formatClock } from '../../lib/format'
 import { countWords, joinScript } from '../../lib/script'
 import { useLectureDeck, useSlideImageUrls, useUpdateSlide, type LectureDeck } from '../lectures/api'
+import { useMonthUsage } from '../runs/api'
+import { quotaState } from '../runs/quota'
 import { useScriptSaver } from './api'
 import { scriptFileName, scriptMarkdown } from './exportScript'
 import { useFlash, useNow, useStopwatch, useWakeLock } from './hooks'
 import { MEMO_LEVELS, nextMemoLevel, toMemoLevel, type MemoLevel } from './memo'
 import { planWindows, timerStatus, type SlideWindow, type TimerStatus } from './plan'
 import { ScriptPane, type EditField } from './ScriptPane'
+import { TakeSaveDialog } from './TakeSaveDialog'
+import { useTake, type Take } from './useTake'
 
 /** "Peek" shows the full script this long. */
 const PEEK_MS = 3000
@@ -68,6 +74,7 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
     setSearchParams({ slide: String(index + 1) }, { replace: true })
   }, [index, setSearchParams])
   const slide = deck.slides[index]!
+  const slidePosition = slide.position
   const next = deck.slides[index + 1]
 
   const { data: urls } = useSlideImageUrls(deck)
@@ -76,6 +83,10 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
   const now = useNow(1000)
   useWakeLock()
   const saver = useScriptSaver(deck.id)
+  const take = useTake()
+  const recording = take.phase === 'recording' || take.phase === 'starting'
+  const { data: usage } = useMonthUsage()
+  const quota = usage ? quotaState(usage.minutes, usage.cap) : 'ok'
   const updateSlide = useUpdateSlide(deck.id)
   const [editing, setEditing] = useState<EditField | null>(null)
   const [peeking, peek] = useFlash(PEEK_MS)
@@ -111,6 +122,23 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
   }
   const goNext = () => go((i) => i + 1)
   const goBack = () => go((i) => i - 1)
+
+  // Every slide change during a take is timestamped on the audio clock.
+  const { markSlide } = take
+  useEffect(() => {
+    markSlide(slidePosition)
+  }, [slidePosition, markSlide])
+
+  // Record take (§5.7): the timer and the recording start together; stopping opens the save step.
+  function toggleTake() {
+    if (take.phase === 'recording') {
+      take.stop()
+      stopwatch.pause()
+    } else if (take.phase === 'idle' && !take.finished && quota !== 'blocked') {
+      take.start(slidePosition)
+      stopwatch.restart()
+    }
+  }
 
   function setLevel(memoLevel: MemoLevel) {
     if (memoLevel !== level) updateSlide.mutate({ id: slide.id, patch: { memo_level: memoLevel } })
@@ -158,7 +186,9 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
       KeyM: () => setLevel(nextMemoLevel(level, hasKeywords)),
       KeyP: peek,
       KeyE: () => setEditing('script'),
+      KeyR: toggleTake,
     }
+    if (event.key === 'Escape' && take.phase === 'recording') byKey.Escape = toggleTake
     const action = byKey[event.key] ?? (event.repeat ? undefined : byCode[event.code])
     if (!action) return
     event.preventDefault()
@@ -189,6 +219,9 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
       <header className="flex items-center gap-1.5 border-b border-rule bg-card/85 px-2 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] backdrop-blur md:gap-3 md:px-4 md:py-2">
         <Link
           to={`/lectures/${deck.id}`}
+          onClick={(e) => {
+            if (recording && !window.confirm('יש הקלטה פעילה. לצאת בלי לשמור אותה?')) e.preventDefault()
+          }}
           aria-label="יציאה ממצב מציג"
           title="יציאה"
           className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-ink/5 hover:text-ink"
@@ -201,15 +234,7 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
           </span>
           <En className="truncate font-medium">{slide.title || 'Untitled slide'}</En>
         </p>
-        <button
-          type="button"
-          disabled
-          title="הקלטת חזרה מלאה תגיע ב-Sprint 2"
-          className={`${buttonStyles.secondary} h-10 px-3 text-sm max-lg:hidden`}
-        >
-          <CircleDot size={16} className="text-live" aria-hidden="true" />
-          הקלט חזרה
-        </button>
+        <TakeButton take={take} quota={quota} usage={usage} onToggle={toggleTake} />
         <TimerPill stopwatch={stopwatch} status={status} />
         <PlanLabel window={windows[index]} />
         <span dir="ltr" className="hidden font-mono text-sm text-ink-soft md:block" title="שעה">
@@ -217,6 +242,15 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
         </span>
         <FullscreenButton />
       </header>
+
+      {take.error ? (
+        <p role="alert" className="border-b border-bad/25 bg-bad-soft px-4 py-2 text-sm text-bad">
+          {take.error}
+        </p>
+      ) : null}
+      {take.finished ? (
+        <TakeSaveDialog deck={deck} take={take.finished} windows={windows} onDiscard={take.discard} />
+      ) : null}
 
       <main
         dir="ltr"
@@ -497,5 +531,60 @@ function KeyHints() {
       ))}
       <span>· קליקר ו-PgDn/PgUp עובדים גם הם</span>
     </p>
+  )
+}
+
+function TakeButton({
+  take,
+  quota,
+  usage,
+  onToggle,
+}: {
+  take: Take
+  quota: ReturnType<typeof quotaState>
+  usage: { minutes: number; cap: number } | undefined
+  onToggle: () => void
+}) {
+  const usageText = usage ? `נוצלו ${Math.round(usage.minutes)} מתוך ${usage.cap} דקות Azure החודש` : ''
+  if (take.phase === 'recording' || take.phase === 'stopping') {
+    return (
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onToggle}
+        disabled={take.phase === 'stopping'}
+        aria-label="עצור הקלטה (R)"
+        title="עצור הקלטה (R או Esc)"
+        className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-live px-3 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-60"
+      >
+        <span className="relative grid h-4 w-4 place-items-center" aria-hidden="true">
+          <span
+            className="absolute inset-0 rounded-full bg-white/40 transition-transform"
+            style={{ transform: `scale(${1 + Math.min(1, take.level * 6)})` }}
+          />
+          <Square size={11} fill="currentColor" />
+        </span>
+        <span className="hidden sm:inline">עצור</span>
+      </button>
+    )
+  }
+  const blocked = quota === 'blocked'
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onToggle}
+      disabled={blocked || take.phase === 'starting' || take.finished !== null}
+      aria-label="הקלט חזרה (R)"
+      title={blocked ? `נוצלה כמעט כל מכסת Azure החודשית. ${usageText}` : `הקלט חזרה מלאה (R). ${usageText}`}
+      className={`${buttonStyles.secondary} h-10 shrink-0 px-3 text-sm ${quota === 'warn' ? 'border-warn text-warn' : ''}`}
+    >
+      {take.phase === 'starting' ? (
+        <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+      ) : (
+        <CircleDot size={16} className="text-live" aria-hidden="true" />
+      )}
+      <span className="hidden sm:inline">הקלט חזרה</span>
+    </button>
   )
 }
