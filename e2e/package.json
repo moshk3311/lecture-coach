@@ -1,0 +1,19 @@
+{
+  "name": "lecture-coach-e2e",
+  "private": true,
+  "description": "Screenshot and flow checks of the app against an in-memory Supabase (see README.md)",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "screens": "node screens.js",
+    "take": "node take.js",
+    "retention": "node retention.js",
+    "import": "node import.js",
+    "all": "node screens.js && node take.js && node retention.js"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

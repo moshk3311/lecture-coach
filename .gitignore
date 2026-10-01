@@ -27,3 +27,6 @@ private/
 .idea
 .DS_Store
 *.sw?
+
+# Screenshots from the e2e checks
+e2e/out/
