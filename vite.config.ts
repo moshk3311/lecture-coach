@@ -61,7 +61,8 @@ export default defineConfig(({ command }) => {
       }),
     ],
     test: {
-      include: ['src/**/*.test.ts'],
+      // Edge Function modules without Deno APIs (e.g. ai/contract.ts) are tested here too.
+      include: ['src/**/*.test.ts', 'supabase/functions/**/*.test.ts'],
       environment: 'node',
     },
   }
