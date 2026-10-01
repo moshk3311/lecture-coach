@@ -9,7 +9,7 @@ Full spec: `docs/ARCHITECTURE.md`. Read the relevant sections before each sprint
 - Never put secrets in client code. Azure/Gemini keys live only in Supabase secrets.
 - TypeScript strict. Vitest unit tests for parsers (PPTX, Azure result) and metrics.
 - UI is Hebrew RTL. All English learning content is wrapped in `dir="ltr" lang="en"`.
-- Mobile-first: check every screen at 390px width and on desktop.
+- Mobile-first: check every screen at 390px width and on desktop (`e2e/`: screenshots on a mocked Supabase, no login needed).
 - Never block the core flow on an LLM failure — Azure scores must always show.
 - All speech/LLM calls go through the provider interfaces in `src/providers/`.
 - Commit after each completed task (Conventional Commits).
@@ -21,6 +21,8 @@ Full spec: `docs/ARCHITECTURE.md`. Read the relevant sections before each sprint
 npm run dev          # local dev
 npm run build        # production build
 npm run test         # vitest
+npm --prefix e2e run screens             # with npm run dev running: every screen at 390px + desktop (setup: e2e/README.md)
+npm --prefix e2e run all                 # screens + take recording + recording retention flows
 supabase db push                         # apply migrations
 supabase functions deploy <name>         # deploy an edge function
 supabase secrets set KEY=value           # set server secrets
