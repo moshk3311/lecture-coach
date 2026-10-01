@@ -228,7 +228,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 
 **Slides source:** the owner uploads a PDF export of the deck; the browser renders each page with PDF.js at 1600 px (WebP where the browser encodes it, else PNG). Without images the view shows the slide title and text.
 
-**Full-run rehearsal ("Record take"):** starts the timer and the recording together; every slide change is timestamped on the audio clock. Stop (R) or Esc ends the take → upload → report. The recording is then assessed with continuous recognition (the concatenated script as reference text), after the take rather than live, so a take survives an Azure failure or an exhausted quota and can be re-assessed. A take stops by itself just under the 50 MB upload limit (16 kHz mono WAV ≈ 26 minutes).
+**Full-run rehearsal ("Record take"):** starts the timer and the recording together; every slide change is timestamped on the audio clock. Stop (R) or Esc ends the take → upload → report. The recording is then assessed with continuous recognition (the concatenated script as reference text), after the take rather than live, so a take survives an Azure failure or an exhausted quota and can be re-assessed while its recording is kept (the newest 10 takes, §6). A take stops by itself just under the 50 MB upload limit (16 kHz mono WAV ≈ 26 minutes).
 
 **Run report** (a page per take, listed in the lecture's run history): total time vs target · time per slide vs planned window · WPM per slide (target band 130–160) · fillers per minute · long pauses · script coverage (omissions/insertions) · prosody/monotone flags · weakest words · Gemini delivery feedback (tone, energy, clarity) · **Corrections** (below).
 
@@ -244,7 +244,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
  └────────────────────────────┘ └────────────────────────────┘
  Principle (Hebrew): direct translation mixes "put to work" and "put into practice".
 ```
-- **▶ You:** plays the user's own audio slice. Anchoring: fuzzy-match `you_said_en` against Azure's word timeline within ±3 s of Gemini's approximate time; on a match (≥ 0.6) use Azure offsets + 150 ms padding, otherwise Gemini's times ± 0.5 s.
+- **▶ You:** plays the user's own audio slice. Anchoring: fuzzy-match `you_said_en` against Azure's word timeline within ±3 s of Gemini's approximate time; on a match (≥ 0.6) use Azure offsets + 150 ms padding, otherwise Gemini's times ± 0.5 s. Hidden once the take's recording is deleted (§6).
 - **▶ American:** Azure TTS of `american_en` (same hash cache as §5.2).
 - Each correction is saved with the take so "Practice this" can reuse it later (Sprint 4).
 
@@ -439,7 +439,9 @@ create table coach_tips (                          -- §5.8, imported from Noteb
 - `pptx/{user_id}/{lecture_id}.pptx`
 - `slides/{user_id}/{lecture_id}/{n}-{version}.webp|png` (a new version per render, so a re-render never comes back from a stale cache)
 
-**Retention (free-tier storage):** WAV at 16 kHz mono ≈ 1.9 MB/min. A scheduled job keeps audio for the last 5 attempts per sentence and full runs from the last 60 days; older audio files are deleted, scores are kept (`audio_path = null`).
+**Retention (free-tier storage):** WAV at 16 kHz mono ≈ 1.9 MB/min, so a 20-minute take is ≈ 38 MB against 1 GB of storage.
+- **Takes:** after each saved take (and after a lecture is deleted) the app keeps the recordings of the newest 10 full-run takes across the existing lectures and deletes every other take recording (older takes, takes of deleted lectures). The attempt, its scores and its report stay (`audio_path = null`). Files are deleted before the rows are cleared, so an interrupted cleanup finishes on the next take. A take discarded after a failed save also deletes its uploaded file.
+- **Sentence attempts (Sprint 4):** keep audio for the last 5 attempts per sentence.
 
 ---
 
@@ -533,7 +535,7 @@ Store in `supabase/functions/ai/prompts/` and version them.
 | Azure STT + Pronunciation Assessment (F0) | 5 audio hours/month · 1 concurrent · stops (no billing) at quota | ~10 s per sentence attempt → hundreds of attempts + a few full runs | usage meter; warn 80%, block 98% |
 | Azure Neural TTS (F0) | 0.5M characters/month | 15-min script ≈ 12k chars × 2 variants | hash cache |
 | Gemini API (free tier) | per-model RPM / RPD limits | 1 call per attempt | backoff + retry button |
-| Supabase (free) | project count, DB/storage caps, pause on inactivity | audio is the main storage | retention job |
+| Supabase (free) | project count, DB/storage caps, pause on inactivity | audio is the main storage | keep the newest 10 take recordings (§6) |
 | Gmail SMTP (login emails) | ~500 emails/day | a few per week | Auth rate limit 30/hour |
 | GitHub Pages | free | static hosting | — |
 
@@ -555,7 +557,7 @@ For each sprint: plan → approval → build → demo checklist → update Statu
 **Acceptance:** upload a real PPTX (+ its PDF export) → slides render → rehearse the whole deck (no recording yet) with timer, planned windows, next-slide preview, editing and memorization levels, on desktop and phone landscape.
 
 ### Sprint 2 — Full-run recording + Run report (MVP 2/2)
-**Tasks:** AudioWorklet capture + WAV encoder · continuous pronunciation assessment with the concatenated script · slide-change timestamps · typed result parser + derived metrics (unit tests) · Storage upload + `save_attempt` (mode `full_run`) · `ai` function: `run_report` (audio via Files API, incl. corrections) + `keywords` (enables memorization L3) · basic TTS for correction phrases + cache · audio slicing with Azure/Gemini time anchoring · run report page per §5.7 incl. Corrections cards · run history per lecture · Azure usage meter · short spike report: filler detection, iOS installed-PWA mic, prosody availability in the region, noise suppression on/off, accuracy of Gemini timestamps.
+**Tasks:** AudioWorklet capture + WAV encoder · continuous pronunciation assessment with the concatenated script · slide-change timestamps · typed result parser + derived metrics (unit tests) · Storage upload + `save_attempt` (mode `full_run`) · `ai` function: `run_report` (audio via Files API, incl. corrections) + `keywords` (enables memorization L3) · basic TTS for correction phrases + cache · audio slicing with Azure/Gemini time anchoring · run report page per §5.7 incl. Corrections cards · run history per lecture · Azure usage meter · recording retention (newest 10 takes, §6) · short spike report: filler detection, iOS installed-PWA mic, prosody availability in the region, noise suppression on/off, accuracy of Gemini timestamps.
 **Acceptance:** rehearse a 10-slide deck end to end → report shows total and per-slide time vs planned windows, WPM, fillers, pauses, coverage, prosody, weakest words, AI feedback and Corrections cards where ▶ You and ▶ American both play the right phrase (or graceful fallback) · previous runs listed · tests pass.
 
 ### Sprint 2b — Coach tips in the run report
@@ -568,7 +570,7 @@ For each sprint: plan → approval → build → demo checklist → update Statu
 **Acceptance:** import a deck → AI drafts script and transition lines for all slides → refine via chat → every sentence has playable reference audio (normal and slow) → changes appear in the presenter view.
 
 ### Sprint 4 — Sentence practice, AI feedback, progress
-**Tasks:** sentence practice (`recognizeOnceAsync`) + colored words + score chips · word sheet (phonemes, own-audio slice vs reference) · shadowing · `feedback` action + feedback card (Hebrew with LTR English) · "Practice this" links from the run report's weakest words · weak-items drill · progress dashboard (Recharts) · retention cleanup job.
+**Tasks:** sentence practice (`recognizeOnceAsync`) + colored words + score chips · word sheet (phonemes, own-audio slice vs reference) · shadowing · `feedback` action + feedback card (Hebrew with LTR English) · "Practice this" links from the run report's weakest words · weak-items drill · progress dashboard (Recharts) · sentence audio retention (§6).
 **Acceptance:** sentence result in ≤ 3 s on iPhone (installed PWA) and desktop · feedback after each recording (or graceful fallback) · weak words update · dashboard shows trends across ≥ 3 days (seed data for dev).
 
 ### Backlog (revisit as the app grows)
@@ -650,7 +652,7 @@ Portal names change often; if a label differs, search for "Speech".
 
 ## Appendix B — Verified in Sprint 0 (September 2026)
 
-- **Supabase free plan:** 2 active projects · 500 MB database · 1 GB storage · **50 MB max per upload** · pauses after ~7 days without database activity → `keep-supabase-awake` workflow calls `public.ping()` three times a day (no emails).
+- **Supabase free plan:** 2 active projects · 500 MB database · 1 GB storage · **50 MB max per upload** · pauses after ~7 days without database activity → `keep-supabase-awake` workflow calls `public.ping()` three times a day (no emails). 1 GB holds about 25 recordings of a 20-minute take → the app keeps the newest 10 (§6, owner's choice, Sprint 2).
 - **Edge Functions auth:** the platform `verify_jwt` check lets the publishable key through and does not understand this project's ES256 user sessions. Functions deploy with `verify_jwt = false` and call `requireUser()` (`supabase/functions/_shared/auth.ts`), which validates the session with Supabase Auth.
 - **Login email:** carries both a magic link (desktop) and a 6-digit code (installed iOS PWA, where links open in Safari instead of the app). It is sent through the owner's Gmail (custom SMTP). On the free plan, the built-in email service rejects custom templates, and it sends only 2 emails per hour. With custom SMTP, the limit is 30 per hour.
 - **`config push`:** writes every property `config.toml` declares, email template bodies included. Template defaults that differ from the hosted project are commented out and marked "Hosted default". SMTP stays undeclared, because its password lives only in the Dashboard. Run `supabase config diff` before every push.

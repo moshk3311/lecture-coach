@@ -11,6 +11,7 @@ import { WPM_BAND, type SlideTiming, type TimingStatus } from '../../lib/metrics
 import { scoreBand } from '../../lib/scoreBands'
 import { useRecordingUrl, useRun, type RunDetail, type RunMetrics } from './api'
 import { useAssessRun } from './assess'
+import { KEEP_RECORDINGS } from './retention'
 
 const dateTime = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
@@ -76,13 +77,13 @@ function Report({ run, lectureId }: { run: RunDetail; lectureId: string }) {
         </Tile>
         <Tile label="הגייה" tone={run.pron_score === null ? 'neutral' : scoreBand(run.pron_score)}>
           {run.pron_score === null ? '—' : <span dir="ltr">{Math.round(run.pron_score)}</span>}
-          <Sub>{run.pron_score === null ? 'אחרי הערכה' : 'מתוך 100'}</Sub>
+          <Sub>{run.pron_score !== null ? 'מתוך 100' : run.audio_path ? 'אחרי הערכה' : 'לא הוערכה'}</Sub>
         </Tile>
       </section>
 
       <Recording path={run.audio_path} />
 
-      {speech ? <SpeechDetails run={run} metrics={metrics} /> : <AssessPanel run={run} />}
+      {speech ? <SpeechDetails run={run} metrics={metrics} /> : run.audio_path ? <AssessPanel run={run} /> : null}
 
       <SlideTimes slides={metrics.slides} perSlideWpm={speech?.perSlide} />
 
@@ -123,12 +124,21 @@ function Sub({ children }: { children: ReactNode }) {
 }
 
 function Recording({ path }: { path: string | null }) {
-  const { data: url } = useRecordingUrl(path)
-  if (!path) return null
+  const { data: url, isError } = useRecordingUrl(path)
   return (
     <section className={`${cardStyles} rise-in mt-6 p-4`} style={stagger(3)}>
       <p className="mb-2 text-sm text-ink-soft">ההקלטה</p>
-      {url ? <audio controls preload="metadata" src={url} className="w-full" /> : <div className="h-[54px]" />}
+      {!path ? (
+        <p className="text-sm leading-relaxed text-ink-faint">
+          נמחקה אוטומטית: נשמרות רק ההקלטות של {KEEP_RECORDINGS} החזרות האחרונות. הדוח והציונים נשארים.
+        </p>
+      ) : isError ? (
+        <p className="text-sm text-ink-faint">לא הצלחתי לטעון את ההקלטה. רענן את הדף.</p>
+      ) : url ? (
+        <audio controls preload="metadata" src={url} className="w-full" />
+      ) : (
+        <div className="h-[54px]" />
+      )}
     </section>
   )
 }
