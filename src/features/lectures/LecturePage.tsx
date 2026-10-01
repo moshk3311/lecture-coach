@@ -149,7 +149,7 @@ function DeleteLecture({ deck, onCancel }: { deck: LectureDeck; onCancel: () => 
         למחוק את ההרצאה?
       </h2>
       <p className="mt-2 leading-relaxed text-ink-soft">
-        יימחקו גם השקפים, התסריט והתמונות. אי אפשר לבטל את זה.
+        יימחקו גם השקפים, התסריט, התמונות וההקלטות של החזרות. אי אפשר לבטל את זה.
       </p>
       {remove.isError ? (
         <div className="mt-4">

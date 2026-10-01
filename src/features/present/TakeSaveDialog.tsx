@@ -7,7 +7,7 @@ import { formatClock } from '../../lib/format'
 import { buildRunTiming } from '../../lib/metrics'
 import { joinScript } from '../../lib/script'
 import type { LectureDeck } from '../lectures/api'
-import { useSaveTake } from '../runs/api'
+import { discardTakeAudio, useSaveTake } from '../runs/api'
 import type { SlideWindow } from './plan'
 import type { FinishedTake } from './useTake'
 
@@ -51,6 +51,13 @@ export function TakeSaveDialog({ deck, take, windows, onDiscard }: TakeSaveDialo
     run()
   })
 
+  function discard() {
+    if (!window.confirm('למחוק את ההקלטה של החזרה הזו?')) return
+    // The upload may have worked before the save failed: don't leave the file behind.
+    void discardTakeAudio(deck.user_id, attemptId).catch(() => undefined)
+    onDiscard()
+  }
+
   function download() {
     const url = URL.createObjectURL(new Blob([encodeWav(take.recording.pcm, take.recording.sampleRate)], { type: 'audio/wav' }))
     const link = document.createElement('a')
@@ -91,11 +98,7 @@ export function TakeSaveDialog({ deck, take, windows, onDiscard }: TakeSaveDialo
                 <Download size={16} aria-hidden="true" />
                 הורד הקלטה
               </button>
-              <button
-                type="button"
-                onClick={() => window.confirm('למחוק את ההקלטה של החזרה הזו?') && onDiscard()}
-                className={`${buttonStyles.ghost} hover:text-bad`}
-              >
+              <button type="button" onClick={discard} className={`${buttonStyles.ghost} hover:text-bad`}>
                 <Trash2 size={16} aria-hidden="true" />
                 מחק
               </button>

@@ -6,6 +6,7 @@ import { formatClock } from '../../lib/format'
 import type { RunTiming } from '../../lib/metrics'
 import { scoreBand } from '../../lib/scoreBands'
 import { useLectureRuns } from './api'
+import { KEEP_RECORDINGS } from './retention'
 
 const dateTime = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 const BAND_TEXT = { good: 'text-good', warn: 'text-warn', bad: 'text-bad' } as const
@@ -25,7 +26,10 @@ export function RunHistory({ lectureId }: { lectureId: string }) {
 
   return (
     <section className="rise-in mt-8" style={stagger(5)}>
-      <h2 className="mb-4 font-display text-xl font-semibold">חזרות מוקלטות</h2>
+      <h2 className="font-display text-xl font-semibold">חזרות מוקלטות</h2>
+      <p className="mt-1 mb-4 text-sm text-ink-soft">
+        נשמרות ההקלטות של {KEEP_RECORDINGS} החזרות האחרונות מכל ההרצאות. הדוחות נשמרים תמיד.
+      </p>
       <ul className="grid grid-cols-1 gap-2">
         {runs.map((run) => {
           const timing = run.metrics as unknown as RunTiming | null
@@ -55,7 +59,7 @@ export function RunHistory({ lectureId }: { lectureId: string }) {
                 {run.pron_score !== null ? (
                   <span className={`font-mono text-lg ${BAND_TEXT[scoreBand(Number(run.pron_score))]}`}>{Math.round(Number(run.pron_score))}</span>
                 ) : (
-                  <span className="text-xs text-ink-faint">בלי הערכה</span>
+                  <span className="text-xs text-ink-faint">{run.audio_path ? 'בלי הערכה' : 'בלי הקלטה'}</span>
                 )}
                 <ChevronLeft size={18} className="shrink-0 text-ink-faint" aria-hidden="true" />
               </Link>

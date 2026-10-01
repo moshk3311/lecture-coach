@@ -3,6 +3,7 @@ import type { Tables, TablesInsert, TablesUpdate } from '../../lib/database.type
 import type { ParsedDeck } from '../../lib/pptx'
 import { supabase } from '../../lib/supabase'
 import { slideImagesFolder } from '../../lib/storagePaths'
+import { pruneRecordingsInBackground } from '../runs/api'
 import { importDeck } from './importDeck'
 import { renderSlideImages, type RenderProgress } from './slideImages'
 
@@ -140,7 +141,10 @@ export function useSlideImageUrls(deck: LectureDeck | null | undefined) {
   })
 }
 
-/** Deletes the lecture's files first (the rows cascade, storage does not), then the lecture. */
+/**
+ * Deletes the lecture's files first (the rows cascade, storage does not), then the
+ * lecture. Its takes stay without a lecture, and the prune deletes their recordings.
+ */
 export function useDeleteLecture() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -161,6 +165,7 @@ export function useDeleteLecture() {
     },
     onSuccess: (_, lecture) => {
       queryClient.removeQueries({ queryKey: lectureKeys.detail(lecture.id) })
+      pruneRecordingsInBackground(queryClient)
       return queryClient.invalidateQueries({ queryKey: lectureKeys.all, exact: true })
     },
   })

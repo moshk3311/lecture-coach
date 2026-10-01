@@ -1,10 +1,11 @@
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation, type QueryClient } from '@tanstack/react-query'
 import { encodeWav } from '../../audio/wav'
 import type { Recording } from '../../audio/recorder'
 import type { Tables } from '../../lib/database.types'
 import type { RunTiming } from '../../lib/metrics'
 import { recordingPath } from '../../lib/storagePaths'
 import { supabase } from '../../lib/supabase'
+import { recordingsToPrune } from './retention'
 
 export type Attempt = Tables<'attempts'>
 export type WordResult = Tables<'word_results'>
@@ -22,6 +23,7 @@ export type SpeechMetrics = {
 }
 
 export const runKeys = {
+  all: ['runs'] as const,
   lecture: (lectureId: string) => ['runs', 'lecture', lectureId] as const,
   detail: (id: string) => ['runs', id] as const,
   usage: ['runs', 'usage'] as const,
@@ -64,12 +66,55 @@ export function useSaveTake() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: saveTake,
-    onSuccess: (_, { lectureId }) =>
-      Promise.all([
+    onSuccess: (_, { lectureId }) => {
+      pruneRecordingsInBackground(queryClient)
+      return Promise.all([
         queryClient.invalidateQueries({ queryKey: runKeys.lecture(lectureId) }),
         queryClient.invalidateQueries({ queryKey: runKeys.usage }),
-      ]),
+      ])
+    },
   })
+}
+
+/**
+ * Deletes the recordings `recordingsToPrune` picks and clears their audio_path;
+ * the attempts and their scores stay. Files go first, so if clearing the rows
+ * fails, the next run finds the same takes and finishes the job.
+ */
+export async function pruneRecordings(): Promise<number> {
+  const { data, error } = await supabase
+    .from('attempts')
+    .select('id, lecture_id, audio_path, created_at')
+    .eq('mode', 'full_run')
+    .not('audio_path', 'is', null)
+  if (error) throw error
+  const stale = recordingsToPrune(data)
+  if (!stale.length) return 0
+  const removed = await supabase.storage.from('recordings').remove(stale.map((take) => take.audio_path))
+  if (removed.error) throw removed.error
+  const cleared = await supabase
+    .from('attempts')
+    .update({ audio_path: null })
+    .in('id', stale.map((take) => take.id))
+  if (cleared.error) throw cleared.error
+  return stale.length
+}
+
+/** Runs after a take is saved or a lecture is deleted; a failure only waits for the next run. */
+export function pruneRecordingsInBackground(queryClient: QueryClient) {
+  pruneRecordings()
+    .then((count) => (count ? queryClient.invalidateQueries({ queryKey: runKeys.all }) : undefined))
+    .catch(() => undefined)
+}
+
+/**
+ * Deletes the uploaded audio of a take discarded after a failed save, unless the
+ * attempt was saved after all (only the reply got lost).
+ */
+export async function discardTakeAudio(userId: string, attemptId: string): Promise<void> {
+  const { data, error } = await supabase.from('attempts').select('id').eq('id', attemptId).maybeSingle()
+  if (error || data) return
+  await supabase.storage.from('recordings').remove([recordingPath(userId, attemptId)])
 }
 
 /** Full-run takes of a lecture, newest first. */
@@ -79,7 +124,7 @@ export function useLectureRuns(lectureId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('attempts')
-        .select('id, created_at, duration_sec, pron_score, accuracy, fluency, prosody, wpm, filler_count, metrics')
+        .select('id, created_at, duration_sec, audio_path, pron_score, accuracy, fluency, prosody, wpm, filler_count, metrics')
         .eq('lecture_id', lectureId)
         .eq('mode', 'full_run')
         .order('created_at', { ascending: false })
