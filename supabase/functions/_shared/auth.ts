@@ -8,7 +8,8 @@ import { errorJson } from './http.ts'
 
 export type AuthedUser = { id: string; email: string | null; token: string }
 
-function projectApiKey(): string {
+/** The project's publishable key, sent as `apikey` next to a user's token. */
+export function projectApiKey(): string {
   const keys = Deno.env.get('SUPABASE_PUBLISHABLE_KEYS')
   if (keys) {
     const parsed = JSON.parse(keys) as Record<string, string>

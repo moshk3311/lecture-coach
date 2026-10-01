@@ -1,6 +1,7 @@
 // The `ai` function's contract (ARCHITECTURE §7): what each action returns, the response schemas
 // Gemini must follow, and the checks every answer passes before it is saved or returned.
 // Pure (no Deno APIs): the app imports its types, and Vitest tests it.
+import { isObject, list, num, text } from './json.ts'
 
 export const CORRECTION_CATEGORIES = ['phrasing', 'grammar', 'word_choice', 'pronunciation', 'stress', 'intonation'] as const
 export const SEVERITIES = ['jarring', 'minor'] as const
@@ -206,18 +207,6 @@ export function normalizeKeywords(raw: unknown, script: string): string[] {
 // Same word pattern as the memorization levels (src/features/present/memo.ts).
 const WORD = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function list(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
-}
-
-function text(value: unknown): string {
-  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
-}
-
 function oneOf<T extends string>(allowed: readonly T[], value: unknown): T | null {
   return allowed.includes(value as T) ? (value as T) : null
 }
@@ -227,8 +216,8 @@ function slideNumber(value: unknown, slideCount: number): number | null {
 }
 
 function seconds(value: unknown, durationSec: number): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null
-  return Math.round(Math.min(Math.max(value, 0), durationSec) * 10) / 10
+  const n = num(value)
+  return n === null ? null : Math.round(Math.min(Math.max(n, 0), durationSec) * 10) / 10
 }
 
 function wordsOf(value: string): string {

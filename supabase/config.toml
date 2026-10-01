@@ -445,3 +445,7 @@ enabled = true
 # The platform check lets the public publishable key through and does not understand the
 # project's ES256 user sessions, so the function authorizes in code (_shared/auth.ts).
 verify_jwt = false
+
+[functions.ai]
+# Same as azure-token: authorized in code (_shared/auth.ts).
+verify_jwt = false
