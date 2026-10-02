@@ -1,7 +1,8 @@
 // In-memory Supabase for screenshot checks: auth, PostgREST tables and RPCs, Storage and the
-// azure-token function, all answered inside the browser. It never touches the real project.
+// azure-token and ai functions, all answered inside the browser. It never touches the real project.
 // REF must match VITE_SUPABASE_URL in .env.local: the app builds its session key from it.
 const crypto = require('crypto')
+const { aiReport, keywordsOf } = require('./ai')
 const REF = 'gzppgmoegcsdtovcdkmy'
 const BASE = `https://${REF}.supabase.co`
 const USER_ID = '11111111-1111-4111-8111-111111111111'
@@ -41,7 +42,8 @@ function uuid() {
 /**
  * The mocked database. Scripts read it to check what the app saved, and can set:
  * usageMinutes (Azure minutes used this month, default 12), failSaveAttempt (save_attempt
- * answers 500), loseSaveReply (save_attempt saves, then answers 500).
+ * answers 500), loseSaveReply (save_attempt saves, then answers 500), aiFails (a Hebrew
+ * message the ai function answers with a 503).
  */
 function createDb(seed = {}) {
   return {
@@ -51,6 +53,12 @@ function createDb(seed = {}) {
     storage: seed.storage ?? {}, // bucket/path -> { contentType, body }
     attempts: seed.attempts ?? [],
     wordResults: seed.wordResults ?? [],
+    settings: {
+      user_id: USER_ID, voice: 'en-US-AndrewNeural', slow_rate: '-25%', send_audio_to_llm: true, privacy_ack: false,
+      azure_minutes_cap: 300, ...seed.settings,
+    },
+    aiCalls: [], // { action, payload } of every ai function call
+    ranges: [], // Range headers of signed downloads
     log: [], // "METHOD /path?query" of every request
   }
 }
@@ -114,8 +122,11 @@ async function setupMock(page, db, { signedIn = true } = {}) {
     if (p.startsWith('/auth/v1/')) return json(200, {})
 
     if (p === '/rest/v1/user_settings') {
-      const row = { user_id: USER_ID, voice: 'en-US-AndrewNeural', slow_rate: '-25%', send_audio_to_llm: true, privacy_ack: false, azure_minutes_cap: 300 }
-      return json(200, wantsObject ? row : [row])
+      if (method === 'PATCH') {
+        Object.assign(db.settings, JSON.parse(body))
+        return json(204)
+      }
+      return json(200, wantsObject ? db.settings : [db.settings])
     }
 
     if (p === '/rest/v1/lectures') {
@@ -181,6 +192,22 @@ async function setupMock(page, db, { signedIn = true } = {}) {
 
     if (p === '/functions/v1/azure-token') {
       return json(500, { message_he: 'בשרת חסרים הסודות AZURE_SPEECH_KEY / AZURE_SPEECH_REGION.' })
+    }
+
+    // The ai function answers like Gemini would, after a short wait; run_report saves the report.
+    if (p === '/functions/v1/ai' && method === 'POST') {
+      const { action, payload = {} } = JSON.parse(body || '{}')
+      db.aiCalls.push({ action, payload })
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      if (db.aiFails) return json(503, { message_he: db.aiFails })
+      if (action === 'run_report') {
+        const row = db.attempts.find((a) => a.id === payload.attempt_id)
+        if (!row) return json(404, { message_he: 'החזרה לא נמצאה.' })
+        row.ai_feedback = aiReport({ heardAudio: db.settings.send_audio_to_llm && row.audio_path !== null })
+        return json(200, row.ai_feedback)
+      }
+      if (action === 'keywords') return json(200, { keywords: keywordsOf(payload.slide_script) })
+      return json(400, { message_he: 'פעולה לא מוכרת.' })
     }
 
     if (p === '/rest/v1/v_month_usage') {
@@ -258,6 +285,22 @@ async function setupMock(page, db, { signedIn = true } = {}) {
     if (signed && method === 'GET') {
       const item = db.storage[`${signed[1]}/${decodeURIComponent(signed[2])}`]
       if (!item) return route.fulfill({ status: 404, body: 'not found' })
+      // Byte ranges like Storage serves them (▶ You downloads only the clip it plays).
+      const header = req.headers()['range']
+      if (header) db.ranges.push(header)
+      const range = /^bytes=(\d+)-(\d*)$/.exec(header || '')
+      if (range) {
+        const size = item.body.length
+        const from = Number(range[1])
+        const to = Math.min(size - 1, range[2] ? Number(range[2]) : size - 1)
+        if (from >= size) return route.fulfill({ status: 416, headers: { 'access-control-allow-origin': '*', 'content-range': `bytes */${size}` } })
+        return route.fulfill({
+          status: 206,
+          contentType: item.contentType,
+          body: item.body.subarray(from, to + 1),
+          headers: { 'access-control-allow-origin': '*', 'accept-ranges': 'bytes', 'content-range': `bytes ${from}-${to}/${size}` },
+        })
+      }
       return route.fulfill({ status: 200, contentType: item.contentType, body: item.body, headers: { 'access-control-allow-origin': '*' } })
     }
     const list = p.match(/^\/storage\/v1\/object\/list\/([^/]+)$/)
@@ -269,6 +312,10 @@ async function setupMock(page, db, { signedIn = true } = {}) {
       return json(200, names)
     }
     const obj = p.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/)
+    if (obj && method === 'HEAD') {
+      const found = Boolean(db.storage[`${obj[1]}/${decodeURIComponent(obj[2])}`])
+      return route.fulfill({ status: found ? 200 : 404, headers: { 'access-control-allow-origin': '*' } })
+    }
     if (obj && method === 'GET') {
       const item = db.storage[`${obj[1]}/${decodeURIComponent(obj[2])}`]
       if (!item) return route.fulfill({ status: 404, body: 'not found' })

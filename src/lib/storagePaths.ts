@@ -27,3 +27,8 @@ export function slideImagePath(
 export function recordingPath(userId: string, attemptId: string): string {
   return `${userId}/${attemptId}.wav`
 }
+
+/** A cached reference clip (TTS), named by its cache key (speech/referenceKey.ts). */
+export function referenceAudioPath(userId: string, key: string): string {
+  return `${userId}/${key}.mp3`
+}

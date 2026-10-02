@@ -1,4 +1,4 @@
-import { LoaderCircle, Sparkles, Wand2 } from 'lucide-react'
+import { LoaderCircle, Wand2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useParams } from 'react-router'
 import { Alert } from '../../components/Alert'
@@ -9,6 +9,7 @@ import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
 import { formatClock } from '../../lib/format'
 import { WPM_BAND, type SlideTiming, type TimingStatus } from '../../lib/metrics'
 import { scoreBand } from '../../lib/scoreBands'
+import { AiFeedback } from './AiFeedback'
 import { useRecordingUrl, useRun, type RunDetail, type RunMetrics } from './api'
 import { useAssessRun } from './assess'
 import { KEEP_RECORDINGS } from './retention'
@@ -87,15 +88,7 @@ function Report({ run, lectureId }: { run: RunDetail; lectureId: string }) {
 
       <SlideTimes slides={metrics.slides} perSlideWpm={speech?.perSlide} />
 
-      <section className={`${cardStyles} rise-in mt-6 p-5 md:p-6`} style={stagger(6)}>
-        <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
-          <Sparkles size={18} className="text-accent" aria-hidden="true" />
-          משוב AI ותיקונים
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-          משוב על טון ואנרגיה ותיקוני &quot;איך אמריקאים אומרים את זה&quot; יופיעו כאן אחרי שיוגדר מפתח Gemini.
-        </p>
-      </section>
+      <AiFeedback run={run} />
     </>
   )
 }

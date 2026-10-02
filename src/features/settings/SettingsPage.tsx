@@ -7,11 +7,12 @@ import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
 import { useAuth } from '../auth/useAuth'
 import { UsageMeter } from '../runs/UsageMeter'
 import { AzureCheck } from './AzureCheck'
-import { DEFAULT_SETTINGS, useUserSettings } from './useUserSettings'
+import { DEFAULT_SETTINGS, useUpdateUserSettings, useUserSettings } from './useUserSettings'
 
 export function SettingsPage() {
   const { session, signOut } = useAuth()
   const { data, isError } = useUserSettings()
+  const update = useUpdateUserSettings()
   const settings = { ...DEFAULT_SETTINGS, ...data }
 
   return (
@@ -42,11 +43,22 @@ export function SettingsPage() {
             <Row label="קצב איטי">
               <En className="font-mono text-sm">{settings.slow_rate}</En>
             </Row>
-            <Row label="שליחת אודיו ל-Gemini">{settings.send_audio_to_llm ? 'פעיל' : 'כבוי'}</Row>
+            <Row label="שליחת אודיו ל-Gemini">
+              <Switch
+                label="שליחת אודיו ל-Gemini"
+                on={settings.send_audio_to_llm}
+                disabled={!data || update.isPending}
+                onChange={(on) => update.mutate({ send_audio_to_llm: on })}
+              />
+            </Row>
             <Row label="מכסת Azure לחודש">{settings.azure_minutes_cap} דקות</Row>
           </dl>
-          <p className="mt-4 text-sm text-ink-faint">
-            {isError ? 'לא הצלחתי לטעון את ההגדרות; מוצגות ברירות המחדל.' : 'עריכה תגיע יחד עם הפיצ׳רים שמשתמשים בהן.'}
+          <p className="mt-4 text-sm leading-relaxed text-ink-faint">
+            {isError
+              ? 'לא הצלחתי לטעון את ההגדרות; מוצגות ברירות המחדל.'
+              : update.isError
+                ? 'השמירה נכשלה. בדוק את החיבור ונסה שוב.'
+                : 'בלי אודיו, משוב ה-AI על חזרה מתבסס על המדידות בלבד, בלי תיקונים. עריכת הקול והקצב תגיע עם סטודיו התסריט.'}
           </p>
         </section>
 
@@ -59,6 +71,23 @@ export function SettingsPage() {
         </div>
       </div>
     </>
+  )
+}
+
+/** An on/off switch; the knob sits at the end of the row when on (left in RTL). */
+function Switch({ label, on, disabled, onChange }: { label: string; on: boolean; disabled: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={`flex h-7 w-12 items-center rounded-full p-1 transition disabled:opacity-45 ${on ? 'justify-end bg-accent' : 'justify-start bg-rule'}`}
+    >
+      <span className="h-5 w-5 rounded-full bg-card shadow-sm" />
+    </button>
   )
 }
 

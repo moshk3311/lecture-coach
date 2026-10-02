@@ -1,6 +1,7 @@
 // Screenshots of every screen on a phone (390 px) and on a desktop, from seed data.
 // Fails when a screen scrolls sideways, the page logs an error or a request is not mocked.
 const { APP, DESKTOP, PHONE, PHONE_LANDSCAPE, launch, leftovers, open, overflow, run, shot } = require('./lib/harness')
+const { aiReport } = require('./lib/ai')
 const { createDb } = require('./lib/mock')
 const { assessedFields, basicSeed, seedTake } = require('./lib/seeds')
 
@@ -12,6 +13,7 @@ run(async () => {
   const id = db.lectureId
   const runId = seedTake(db, 1, id)
   const assessedId = seedTake(db, 2, id, assessedFields)
+  const aiId = seedTake(db, 3, id, { ...assessedFields, ai_feedback: aiReport() }, { audioSeconds: 20 })
   const empty = createDb()
 
   // [name, route, text that shows the screen is ready, options]
@@ -25,6 +27,7 @@ run(async () => {
     ['present', `/present/${id}`, '1/3', { viewports: { m: PHONE, ml: PHONE_LANDSCAPE, d: DESKTOP }, fullPage: false }],
     ['run', `/lectures/${id}/runs/${runId}`, 'הערכת הגייה'],
     ['run-assessed', `/lectures/${id}/runs/${assessedId}`, 'הגייה ודיבור'],
+    ['run-ai', `/lectures/${id}/runs/${aiId}`, 'תיקונים: איך אמריקאים אומרים את זה'],
     ['practice', '/practice', 'תרגול ממוקד'],
     ['progress', '/progress', 'לוח התקדמות'],
     ['settings', '/settings', 'שימוש ב-Azure החודש'],

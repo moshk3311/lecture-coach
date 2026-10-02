@@ -11,7 +11,8 @@
     "take": "node take.js",
     "retention": "node retention.js",
     "import": "node import.js",
-    "all": "node screens.js && node take.js && node retention.js"
+    "all": "node screens.js && node take.js && node retention.js && node ai.js",
+    "ai": "node ai.js"
   },
   "devDependencies": {
     "playwright": "1.56.1"
