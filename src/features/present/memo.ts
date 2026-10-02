@@ -14,10 +14,20 @@ export function toMemoLevel(value: number): MemoLevel {
   return (MEMO_LEVELS as number[]).includes(value) ? (value as MemoLevel) : 0
 }
 
-/** M cycles the levels; L3 needs keywords, so it is skipped until a slide has them. */
-export function nextMemoLevel(level: MemoLevel, hasKeywords: boolean): MemoLevel {
-  const levels = MEMO_LEVELS.filter((l) => l !== 3 || hasKeywords)
+/** M cycles the levels; L3 picks keywords from the script, so a slide without one skips it. */
+export function nextMemoLevel(level: MemoLevel, hasScript: boolean): MemoLevel {
+  const levels = MEMO_LEVELS.filter((l) => l !== 3 || hasScript)
   return levels[(levels.indexOf(level) + 1) % levels.length] ?? 0
+}
+
+/**
+ * Whether stored keywords still suit the script: every word of every keyword is still in it. An
+ * edit that removes one makes them stale, and L3 asks Gemini for new ones.
+ */
+export function keywordsFit(keywords: string[] | null | undefined, script: string): boolean {
+  if (!keywords?.length) return false
+  const words = new Set(script.toLowerCase().match(WORD) ?? [])
+  return keywords.every((keyword) => (keyword.toLowerCase().match(WORD) ?? []).every((word) => words.has(word)))
 }
 
 /** Tokens of one paragraph at a level. L4 returns nothing; L3 keeps only keyword words. */

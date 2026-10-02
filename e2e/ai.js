@@ -1,6 +1,7 @@
-// AI feedback in the run report (ARCHITECTURE §5.7, §9): the one-time privacy notice, a report from
-// the mocked ai function, Corrections whose ▶ You clip is cut from the recording with a byte range,
-// the American voice without Azure keys, a failed request and its retry, and the audio switch.
+// The ai function in the app, mocked (ARCHITECTURE §5.7, §9). Run report: the one-time privacy
+// notice, a report with Corrections whose ▶ You clip is cut from the recording with a byte range, the
+// American voice without Azure keys, a failed request and its retry, and the audio switch.
+// Presenter: memorization level L3 with Gemini's keywords, after a failure and a retry.
 const { APP, DESKTOP, PHONE, checks, launch, leftovers, open, overflow, run, shot, until } = require('./lib/harness')
 const { basicSeed, seedTake } = require('./lib/seeds')
 
@@ -71,6 +72,31 @@ run(async () => {
     const px = await overflow(mobile)
     check(px === 0, `no sideways scroll on a phone (${px}px)`)
     await phone.close()
+  }
+
+  // 6. L3 in the presenter: L2 with the reason while Gemini fails, then its keywords, saved and reused.
+  {
+    const { ctx: present, page: presenter } = await open(browser, db, DESKTOP, errors)
+    const keywordCalls = () => db.aiCalls.filter((c) => c.action === 'keywords').length
+    const first = db.slides.find((s) => s.position === 1)
+    await presenter.goto(`${APP}/present/${id}`)
+    await presenter.getByText('Now on screen').waitFor()
+    db.aiFails = 'בשרת חסרים הסודות GEMINI_API_KEY / GEMINI_MODEL.'
+    await presenter.getByRole('button', { name: 'L3' }).click()
+    await presenter.getByText('אין מילות מפתח').waitFor()
+    check((await presenter.getByRole('alert').innerText()).includes('GEMINI_API_KEY'), 'L3 without Gemini says why')
+    db.aiFails = null
+    await presenter.getByRole('alert').getByRole('button', { name: 'נסה שוב' }).click()
+    await until(() => (first.keywords ?? []).length > 0)
+    check(first.memo_level === 3, 'the slide remembers L3')
+    check(first.keywords.join(', ') === 'Short, operational, overview, fertilizer', `the keywords are saved with the slide (${first.keywords.join(', ')})`)
+    await presenter.getByText('אין מילות מפתח').waitFor({ state: 'detached' })
+    await shot(presenter, 'present-l3', false)
+    await presenter.keyboard.press('ArrowRight')
+    await presenter.keyboard.press('ArrowLeft')
+    await presenter.getByText('Script · L3').waitFor()
+    check(keywordCalls() === 2, `saved keywords are reused (${keywordCalls()} calls: one failed, one good)`)
+    await present.close()
   }
 
   await browser.close()

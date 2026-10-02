@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { memoTokens, nextMemoLevel, toMemoLevel, type MemoToken } from './memo'
+import { keywordsFit, memoTokens, nextMemoLevel, toMemoLevel, type MemoToken } from './memo'
 
 /** Visible text with hidden letters as underscores. */
 const render = (tokens: MemoToken[]) => tokens.map((t) => t.shown + '_'.repeat(t.hidden.length)).join('')
@@ -30,8 +30,22 @@ describe('memoTokens', () => {
   })
 })
 
+describe('keywordsFit', () => {
+  const script = 'Granulation is physics, not chemistry. The dryer sets the pace.'
+
+  it('holds while every keyword is still in the script', () => {
+    expect(keywordsFit(['granulation', 'Physics', 'dryer sets'], script)).toBe(true)
+  })
+
+  it('fails when an edit removed a keyword, or there are none', () => {
+    expect(keywordsFit(['granulation', 'cooler'], script)).toBe(false)
+    expect(keywordsFit([], script)).toBe(false)
+    expect(keywordsFit(null, script)).toBe(false)
+  })
+})
+
 describe('nextMemoLevel', () => {
-  it('cycles and skips L3 without keywords', () => {
+  it('cycles and skips L3 on a slide without a script', () => {
     expect([0, 1, 2, 4].map((l) => nextMemoLevel(toMemoLevel(l), false))).toEqual([1, 2, 4, 0])
     expect(nextMemoLevel(2, true)).toBe(3)
     expect(nextMemoLevel(3, true)).toBe(4)

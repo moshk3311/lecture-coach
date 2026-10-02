@@ -1,8 +1,42 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useRef, useState } from 'react'
 import { joinScript, planScriptSave, splitScript } from '../../lib/script'
 import { supabase } from '../../lib/supabase'
-import { lectureKeys, patchDeckSlide, type LectureDeck, type Sentence } from '../lectures/api'
+import { llm } from '../../providers'
+import { lectureKeys, patchDeckSlide, type LectureDeck, type Sentence, type SlideWithSentences } from '../lectures/api'
+import { keywordsFit } from './memo'
+
+/**
+ * Keywords for memorization level L3 (§5.7): the stored ones while they still fit the script, else
+ * new ones from Gemini, saved in slides.keywords. Gemini is asked only while `wanted` (the slide is
+ * shown at L3), once per script text.
+ */
+export function useSlideKeywords(lectureId: string, slide: SlideWithSentences, script: string, wanted: boolean) {
+  const queryClient = useQueryClient()
+  const fit = keywordsFit(slide.keywords, script)
+  const query = useQuery({
+    queryKey: ['slide-keywords', slide.id, script],
+    enabled: wanted && !fit && script.trim() !== '',
+    staleTime: Infinity,
+    retry: false,
+    queryFn: async () => {
+      const keywords = await llm.keywords({ slideScript: script })
+      const { error } = await supabase.from('slides').update({ keywords }).eq('id', slide.id)
+      if (error) throw error
+      patchDeckSlide(queryClient, lectureId, slide.id, { keywords })
+      return keywords
+    },
+  })
+  return {
+    /** null until there are keywords that fit the script. */
+    keywords: fit ? slide.keywords! : (query.data ?? null),
+    loading: query.isFetching,
+    error: query.error,
+    retry: () => void query.refetch(),
+  }
+}
+
+export type SlideKeywords = ReturnType<typeof useSlideKeywords>
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 

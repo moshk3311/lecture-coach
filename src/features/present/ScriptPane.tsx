@@ -2,7 +2,7 @@ import { Check, CircleAlert, LoaderCircle, Pencil } from 'lucide-react'
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type FocusEvent } from 'react'
 import { kickerStyles } from '../../components/styles'
 import type { SlideWithSentences } from '../lectures/api'
-import type { SaveStatus } from './api'
+import type { SaveStatus, SlideKeywords } from './api'
 import type { MemoLevel } from './memo'
 import { MemoText } from './MemoText'
 
@@ -16,6 +16,8 @@ type ScriptPaneProps = {
   /** The slide's script, including text that is still being saved. */
   script: string
   level: MemoLevel
+  /** L3's keywords and how getting them goes. */
+  keywords: SlideKeywords
   peeking: boolean
   editing: EditField | null
   saveStatus: SaveStatus
@@ -26,8 +28,11 @@ type ScriptPaneProps = {
 }
 
 export function ScriptPane(props: ScriptPaneProps) {
-  const { slide, script, level, peeking, editing, saveStatus, onEdit, onRetry } = props
+  const { slide, script, level, keywords, peeking, editing, saveStatus, onEdit, onRetry } = props
   const shownLevel = peeking ? 0 : level
+  // Until Gemini's keywords arrive (or when it fails), L3 shows first letters.
+  const awaitingKeywords = shownLevel === 3 && keywords.keywords === null
+  const textLevel = awaitingKeywords ? 2 : shownLevel
 
   return (
     <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-rule bg-card">
@@ -67,7 +72,10 @@ export function ScriptPane(props: ScriptPaneProps) {
                 <span dir="ltr">L4</span>: בלי תסריט. <span dir="ltr">P</span> להצצה.
               </p>
             ) : (
-              <MemoText text={script} level={shownLevel} keywords={slide.keywords ?? []} />
+              <>
+                {awaitingKeywords ? <KeywordsStatus keywords={keywords} /> : null}
+                <MemoText text={script} level={textLevel} keywords={keywords.keywords ?? []} />
+              </>
             )}
           </div>
           <button
@@ -88,8 +96,8 @@ export function ScriptPane(props: ScriptPaneProps) {
               ) : (
                 <MemoText
                   text={slide.transition_line}
-                  level={shownLevel}
-                  keywords={slide.keywords ?? []}
+                  level={textLevel}
+                  keywords={keywords.keywords ?? []}
                   className="mt-0.5 text-[16px] leading-snug font-medium md:text-[18px]"
                 />
               )
@@ -201,6 +209,35 @@ function ScriptEditor({
         נשמר אוטומטית. <span dir="ltr">Esc</span> או לחיצה מחוץ לתסריט מסיימים עריכה.
       </p>
     </div>
+  )
+}
+
+/** L3 waits for Gemini to pick keywords, or says why it could not. */
+function KeywordsStatus({ keywords }: { keywords: SlideKeywords }) {
+  if (keywords.error && !keywords.loading) {
+    return (
+      <p role="alert" className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-bad">
+        <CircleAlert size={14} aria-hidden="true" />
+        אין מילות מפתח: {keywords.error instanceof Error ? keywords.error.message : 'הבקשה נכשלה.'}
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation() // a click in the script opens the editor
+            keywords.retry()
+          }}
+          className="underline underline-offset-2"
+        >
+          נסה שוב
+        </button>
+      </p>
+    )
+  }
+  return (
+    <p role="status" className="mb-3 flex items-center gap-1.5 text-sm text-ink-faint">
+      <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+      Gemini בוחר מילות מפתח… בינתיים <span dir="ltr">L2</span>.
+    </p>
   )
 }
 

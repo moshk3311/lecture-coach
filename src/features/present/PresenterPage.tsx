@@ -26,7 +26,7 @@ import { countWords, joinScript } from '../../lib/script'
 import { useLectureDeck, useSlideImageUrls, useUpdateSlide, type LectureDeck } from '../lectures/api'
 import { useMonthUsage } from '../runs/api'
 import { quotaState } from '../runs/quota'
-import { useScriptSaver } from './api'
+import { useScriptSaver, useSlideKeywords } from './api'
 import { scriptFileName, scriptMarkdown } from './exportScript'
 import { useFlash, useNow, useStopwatch, useWakeLock } from './hooks'
 import { MEMO_LEVELS, nextMemoLevel, toMemoLevel, type MemoLevel } from './memo'
@@ -109,7 +109,9 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
   )
 
   const level = toMemoLevel(slide.memo_level)
-  const hasKeywords = (slide.keywords?.length ?? 0) > 0
+  const script = scripts[index] ?? ''
+  const hasScript = script.trim() !== ''
+  const keywords = useSlideKeywords(deck.id, slide, script, level === 3 && editing === null)
   const original = snapshot.get(slide.id)
   const changed =
     original !== undefined && (scripts[index] !== original.script || (slide.transition_line ?? '') !== original.transition)
@@ -183,7 +185,7 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
     }
     const byCode: Record<string, () => void> = {
       KeyT: stopwatch.toggle,
-      KeyM: () => setLevel(nextMemoLevel(level, hasKeywords)),
+      KeyM: () => setLevel(nextMemoLevel(level, hasScript)),
       KeyP: peek,
       KeyE: () => setEditing('script'),
       KeyR: toggleTake,
@@ -278,8 +280,9 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
           <ScriptPane
             key={slide.id}
             slide={slide}
-            script={scripts[index] ?? ''}
+            script={script}
             level={level}
+            keywords={keywords}
             peeking={peeking}
             editing={editing}
             saveStatus={saver.status[slide.id] ?? 'idle'}
@@ -305,7 +308,7 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
               primary
             />
           </div>
-          <MemoControl level={level} hasKeywords={hasKeywords} onChange={setLevel} />
+          <MemoControl level={level} hasScript={hasScript} onChange={setLevel} />
           <ControlButton icon={<Eye size={18} />} label="הצצה" onClick={peek} disabled={level === 0} active={peeking} />
           <div className="ms-auto flex gap-1.5">
             <ControlButton
@@ -473,11 +476,11 @@ function ControlButton({ icon, label, onClick, disabled, primary, active, title 
 
 function MemoControl({
   level,
-  hasKeywords,
+  hasScript,
   onChange,
 }: {
   level: MemoLevel
-  hasKeywords: boolean
+  hasScript: boolean
   onChange: (level: MemoLevel) => void
 }) {
   return (
@@ -489,8 +492,8 @@ function MemoControl({
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => onChange(l)}
           aria-pressed={level === l}
-          disabled={l === 3 && !hasKeywords}
-          title={l === 3 && !hasKeywords ? 'מילות מפתח יגיעו ב-Sprint 2' : MEMO_TITLES[l]}
+          disabled={l === 3 && !hasScript}
+          title={MEMO_TITLES[l]}
           className="h-9 min-w-8 rounded-md px-1.5 font-mono text-sm text-ink-soft transition hover:text-ink disabled:opacity-35 aria-pressed:bg-card aria-pressed:font-semibold aria-pressed:text-accent aria-pressed:shadow-sm md:min-w-9"
         >
           L{l}
@@ -504,7 +507,7 @@ const MEMO_TITLES: Record<MemoLevel, string> = {
   0: 'טקסט מלא',
   1: 'כל מילה שלישית מוסתרת',
   2: 'אותיות ראשונות בלבד',
-  3: 'מילות מפתח בלבד',
+  3: 'מילות מפתח בלבד (Gemini בוחר אותן)',
   4: 'בלי תסריט',
 }
 
