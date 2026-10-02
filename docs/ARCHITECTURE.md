@@ -224,7 +224,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 
 **Phone:** portrait → slide top, script bottom, next slide via swipe; landscape → side by side. Swipe left/right to navigate.
 
-**Memorization levels** (per slide, remembered): L0 full text · L1 every 3rd word blanked · L2 first letters only · L3 keywords only (3–6, chosen by Gemini, cached) · L4 no script. "Peek" shows the full text briefly.
+**Memorization levels** (per slide, remembered): L0 full text · L1 every 3rd word blanked · L2 first letters only · L3 keywords only (3–6, chosen by Gemini, cached) · L4 no script. "Peek" shows the full text briefly. L3's keywords are saved in `slides.keywords` and asked for again when an edit removes one of them; until they arrive, or when Gemini fails, L3 shows first letters with the reason and a retry.
 
 **Slides source:** the owner uploads a PDF export of the deck; the browser renders each page with PDF.js at 1600 px (WebP where the browser encodes it, else PNG). Without images the view shows the slide title and text.
 
@@ -244,9 +244,11 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
  └────────────────────────────┘ └────────────────────────────┘
  Principle (Hebrew): direct translation mixes "put to work" and "put into practice".
 ```
-- **▶ You:** plays the user's own audio slice. Anchoring: fuzzy-match `you_said_en` against Azure's word timeline within ±3 s of Gemini's approximate time; on a match (≥ 0.6) use Azure offsets + 150 ms padding, otherwise Gemini's times ± 0.5 s. Hidden once the take's recording is deleted (§6).
-- **▶ American:** Azure TTS of `american_en` (same hash cache as §5.2).
+- **▶ You:** plays the user's own audio slice. Anchoring: fuzzy-match `you_said_en` against Azure's word timeline within ±3 s of Gemini's approximate time; on a match (≥ 0.6) use Azure offsets + 150 ms padding, otherwise Gemini's times ± 0.5 s. Only the slice's bytes are downloaded (an HTTP Range request on the 16 kHz WAV). Hidden once the take's recording is deleted (§6), or when Gemini gave no time.
+- **▶ American:** Azure TTS of `american_en`, cached in `reference-audio/{user_id}/{sha256}.mp3` (the §5.2 key). Without Azure the button is disabled and the report says why once.
 - Each correction is saved with the take so "Practice this" can reuse it later (Sprint 4).
+
+**Getting the AI feedback:** the report's AI section asks for it with a button, after the one-time privacy notice (§9). The `ai` function saves the report in `attempts.ai_feedback`, and the page reads it from there. A failure shows the function's message and a retry, and keeps any report already saved; the rest of the report never waits for Gemini. "New feedback" asks again, e.g. after the assessment adds its measurements.
 
 Long audio for Gemini: upload via the Gemini Files API in one call, with slide-change timestamps in the prompt (check current size and token limits; fallback: split per slide).
 
@@ -462,10 +464,16 @@ Calls `https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueT
 | `americanize` | `{ text }` | `{ text_en, changes: [{from, to, reason_he}] }` |
 | `chat` | lecture + slide context, history, message | `{ reply, proposed_edit? }` |
 | `feedback` | see §5.4 | feedback JSON (§5.4) |
-| `keywords` | `{ slide_script }` | `{ keywords[] }` |
-| `run_report` | full-run audio (Files API), script, slide timestamps, metrics, per-slide data, weak words, selected tips + catalog index (§5.8) | `{ summary_he, strengths_he[], improvements[], next_session_plan_he, corrections[], tips[] }` |
+| `keywords` | `{ slide_script }` | `{ keywords[] }`: up to 6, each found in the script |
+| `run_report` | `{ attempt_id }`. The function reads the take as the user: script, slide timeline, metrics, scores, weak words, `send_audio_to_llm`; it uploads the recording to the Files API. Selected tips + catalog index join in Sprint 2b (§5.8). | The report, also saved in `attempts.ai_feedback`: `{ version, model, prompt_version, created_at, heard_audio, summary_he, strengths_he[], improvements[], next_session_plan_he, corrections[], tips[] }` (`tips[]` from Sprint 2b) |
 
-Implementation: Gemini REST with `system_instruction`, `responseMimeType: "application/json"` + `responseSchema`; model from `GEMINI_MODEL`; retry 429/5xx with exponential backoff (max 2 retries); on failure return `503 { message_he }`. Audio only when `user_settings.send_audio_to_llm = true` (without audio the report has no Corrections section).
+Implementation: Gemini REST with `system_instruction`, `responseMimeType: "application/json"` + `responseSchema`; model from `GEMINI_MODEL`; retry 429/5xx with exponential backoff (max 2 retries); on failure return `503 { message_he }`. Audio only when `user_settings.send_audio_to_llm = true` (without audio the report has no Corrections section). The function reads and writes as the calling user, so RLS applies. Every answer is checked before it is saved or returned (`ai/contract.ts`): known topics and categories, slides that exist, times inside the take, at most 3 strengths, 3 improvements and 8 corrections (jarring first). Prompts carry a `PROMPT_VERSION`, saved with each report.
+
+`improvements[]` item schema:
+```json
+{ "topic": "tone | energy | clarity | pace | structure", "text_he": "string", "slide": 5 }
+```
+`slide` is null when the point is about the whole take.
 
 `corrections[]` item schema:
 ```json
@@ -480,6 +488,8 @@ Implementation: Gemini REST with `system_instruction`, `responseMimeType: "appli
   "approx_end_sec": 134.1
 }
 ```
+`approx_start_sec` / `approx_end_sec` are null when Gemini gave no usable time (no ▶ You then). A phrasing, grammar or word-choice correction whose American version has the same words is dropped; pronunciation, stress and intonation may repeat them.
+
 Prompt rule for corrections: "Listen as a native American listener. Quote exactly what was said. Flag only what a US listener would notice. Judge by the audio, not the script."
 
 `tips[]` item schema (§5.8; `title_he` and `body_he` only when `slug` is null):
@@ -520,7 +530,7 @@ Store in `supabase/functions/ai/prompts/` and version them.
 
 - **Latency:** assessment result ≤ 3 s after stop for a ≤ 15 s sentence.
 - **Offline:** app shell cached; recording needs network — show a clear offline state.
-- **Privacy:** one-time notice that Gemini free tier may use submitted data; avoid confidential work content; full-run audio goes to Gemini by default (needed for Corrections); a settings toggle turns it off.
+- **Privacy:** one-time notice that Gemini free tier may use submitted data; avoid confidential work content; full-run audio goes to Gemini by default (needed for Corrections); a settings toggle turns it off. The notice shows in the run report's AI section before the first request (`user_settings.privacy_ack`); the switch is in Settings.
 - **Security:** no keys in the client · RLS on all tables · JWT on all functions · signed URLs for audio.
 - **i18n:** UI `dir="rtl"` Hebrew; English content `dir="ltr" lang="en"`.
 - **Accessibility:** record button ≥ 64 px · shortcuts: R = record/stop, Space = play reference, ← / → = previous/next.
@@ -658,4 +668,5 @@ Portal names change often; if a label differs, search for "Speech".
 - **`config push`:** writes every property `config.toml` declares, email template bodies included. Template defaults that differ from the hosted project are commented out and marked "Hosted default". SMTP stays undeclared, because its password lives only in the Dashboard. Run `supabase config diff` before every push.
 - **Azure pronunciation assessment:** audio longer than 30 s needs continuous mode, where `enableMiscue` is not supported → Sprint 2 computes omissions/insertions by aligning recognized words with the script. Prosody is en-US only (SDK ≥ 1.35).
 - **PDF.js:** the modern build needs `Map.prototype.getOrInsertComputed`, which older Chromium (141) and Safari lack → the app uses the legacy build (Sprint 1).
+- **Storage byte ranges:** the Storage CORS preflight allows the `Range` header, so ▶ You downloads only the clip it plays (Sprint 2).
 - **Gemini:** latest free-tier Flash model is `gemini-3.8-flash` (text/image/video/audio/PDF input, 1M-token context). Rate limits are per account and shown only in AI Studio.
