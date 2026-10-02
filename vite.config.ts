@@ -14,7 +14,8 @@ export default defineConfig(({ command }) => {
 
   return {
     base,
-    server: { port: 5173, strictPort: true },
+    // PORT moves the dev server when 5173 is taken (magic-link logins expect 5173).
+    server: { port: Number(process.env.PORT) || 5173, strictPort: true },
     preview: { port: 4173, strictPort: true },
     // React + supabase-js + router form a ~600 kB core chunk; the Speech SDK is split out lazily.
     build: { chunkSizeWarningLimit: 700 },
