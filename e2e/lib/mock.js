@@ -207,6 +207,7 @@ async function setupMock(page, db, { signedIn = true } = {}) {
         return json(200, row.ai_feedback)
       }
       if (action === 'keywords') return json(200, { keywords: keywordsOf(payload.slide_script) })
+      if (action === 'speak') return json(200, { audio_base64: require('./seeds').wavBody(1).toString('base64'), mime_type: 'audio/wav' })
       return json(400, { message_he: 'פעולה לא מוכרת.' })
     }
 

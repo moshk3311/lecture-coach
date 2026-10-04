@@ -1,6 +1,6 @@
 // The ai function in the app, mocked (ARCHITECTURE §5.7, §9). Run report: the one-time privacy
 // notice, a report with Corrections whose ▶ You clip is cut from the recording with a byte range, the
-// American voice without Azure keys, a failed request and its retry, and the audio switch.
+// American voice (Gemini TTS, cached in Storage), a failed request and its retry, and the audio switch.
 // Presenter: memorization level L3 with Gemini's keywords, after a failure and a retry.
 const { APP, DESKTOP, PHONE, checks, launch, leftovers, open, overflow, run, shot, until } = require('./lib/harness')
 const { basicSeed, seedTake } = require('./lib/seeds')
@@ -22,7 +22,8 @@ run(async () => {
   await page.getByRole('button', { name: 'הבנתי, בקש משוב' }).click()
   await page.getByText('Gemini מאזין לחזרה').waitFor()
   await page.getByText('תיקונים: איך אמריקאים אומרים את זה').waitFor({ timeout: 10000 })
-  check(db.aiCalls.length === 1 && db.aiCalls[0].action === 'run_report', 'one run_report call for the take')
+  const reportCalls = () => db.aiCalls.filter((c) => c.action === 'run_report').length
+  check(reportCalls() === 1, 'one run_report call for the take')
   check(db.settings.privacy_ack === true, 'asking after the notice acknowledges it')
   check(take.ai_feedback?.corrections.length === 3, 'the report is saved with the take')
 
@@ -34,8 +35,13 @@ run(async () => {
   await you.first().click()
   await page.getByRole('button', { name: 'עצור' }).first().waitFor()
   check(true, 'the clip plays')
-  await page.getByText('הקול האמריקאי לא זמין כרגע').waitFor()
-  check(true, 'without Azure keys the American voice says why')
+  const american = page.getByRole('button', { name: 'קול אמריקאי', disabled: false })
+  await american.first().waitFor()
+  check((await american.count()) === 3, `▶ American on all 3 corrections (${await american.count()})`)
+  const speakCalls = db.aiCalls.filter((c) => c.action === 'speak')
+  check(speakCalls.length === 3 && new Set(speakCalls.map((c) => c.payload.text)).size === 3, `one speak call per phrase (${speakCalls.length})`)
+  const cached = Object.keys(db.storage).filter((k) => k.startsWith('reference-audio/') && k.endsWith('.wav'))
+  check(cached.length === 3, `the 3 clips are cached in Storage as WAV (${cached.length})`)
   await shot(page, 'ai-report')
 
   // 3. A failed request keeps the report on screen and can be asked again.
@@ -46,9 +52,10 @@ run(async () => {
   check(await page.getByText('חזרה בטוחה עם פתיחה חזקה').isVisible(), 'the saved report stays on screen')
   db.aiFails = null
   await page.getByRole('button', { name: 'משוב חדש' }).click()
-  await until(() => db.aiCalls.length === 3)
+  await until(() => reportCalls() === 3)
   await page.getByRole('alert').waitFor({ state: 'detached' })
   check(true, 'asking again clears the error')
+  check(db.aiCalls.filter((c) => c.action === 'speak').length === 3, 'a new report with the same phrases does not synthesize again')
 
   // 4. With audio off in Settings, the next report has no corrections.
   await page.goto(`${APP}/settings`)

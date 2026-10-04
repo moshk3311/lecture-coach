@@ -2,9 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchTakeSlice } from '../../audio/slice'
 import type { PhraseSpan } from '../../lib/anchor'
 import { llm } from '../../providers'
-import { referenceClipUrl } from '../../speech/referenceAudio'
+import { REFERENCE_VOICE, referenceClipUrl } from '../../speech/referenceAudio'
 import { useAuth } from '../auth/useAuth'
-import { DEFAULT_SETTINGS, useUserSettings } from '../settings/useUserSettings'
 import { runKeys, useRecordingUrl } from './api'
 
 /** Asks Gemini for the take's report; the function saves it, so the run is read again after. */
@@ -39,17 +38,15 @@ function dataUrl(blob: Blob): Promise<string> {
   })
 }
 
-/** ▶ American: the phrase in the owner's reference voice (Azure TTS, cached in Storage). */
+/** ▶ American: the phrase in the reference voice (Gemini TTS, cached in Storage). */
 export function useReferenceClip(text: string) {
   const { session } = useAuth()
-  const { data: settings } = useUserSettings()
   const userId = session?.user.id
-  const voice = settings?.voice ?? DEFAULT_SETTINGS.voice
   return useQuery({
-    queryKey: ['reference-clip', voice, text],
+    queryKey: ['reference-clip', REFERENCE_VOICE, text],
     enabled: Boolean(userId && text),
     staleTime: 50 * 60_000, // the signed URL lives an hour
-    retry: false, // without Azure keys every try fails the same way
-    queryFn: () => referenceClipUrl({ userId: userId!, text, voice }),
+    retry: false, // a spent free quota fails the same way on every try
+    queryFn: () => referenceClipUrl({ userId: userId!, text }),
   })
 }

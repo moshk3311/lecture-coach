@@ -7,6 +7,9 @@ const RETRY_DELAYS_MS = [1000, 3000]
 
 export type GeminiConfig = { key: string; model: string }
 
+/** The text-to-speech model; GEMINI_TTS_MODEL overrides it when Google renames or retires it. */
+const DEFAULT_TTS_MODEL = 'gemini-3.8-flash-tts'
+
 /** The key and model from the function secrets, or null when either is missing. */
 export function geminiConfig(): GeminiConfig | null {
   const key = Deno.env.get('GEMINI_API_KEY')
@@ -62,6 +65,35 @@ export async function generateJson(
   } catch {
     throw new InvalidAnswer(`the answer is not JSON (${reason})`)
   }
+}
+
+/**
+ * One Interactions API call that returns speech (a WAV, 24 kHz mono). Returns the raw answer for
+ * speech.ts to read. 429 means the free tier's quota is used up: it is never a charge, because the
+ * project has no billing account (the owner checks this in AI Studio).
+ */
+export async function generateSpeech(
+  config: GeminiConfig,
+  request: { text: string; voice: string; style: string },
+): Promise<unknown> {
+  const res = await withRetries('speech', () =>
+    fetch(`${API}/v1beta/interactions`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': config.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: Deno.env.get('GEMINI_TTS_MODEL') || DEFAULT_TTS_MODEL,
+        input: [
+          {
+            type: 'user_input',
+            content: [{ type: 'text', text: request.text, annotations: [{ type: 'speech_metadata', style: request.style }] }],
+          },
+        ],
+        response_format: { type: 'audio' },
+        generation_config: { speech_config: [{ voice: request.voice }] },
+      }),
+    }),
+  )
+  return res.json()
 }
 
 type GeminiFile = { name?: string; uri?: string; mimeType?: string; state?: string }

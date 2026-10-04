@@ -100,6 +100,7 @@ Pin exact versions in Sprint 0 (check current stable releases).
 - **Estimates:** word count and speaking time per slide at 140 WPM vs target duration.
 
 ### 5.2 Reference Audio
+- **Plan B (2026-10-04, Azure signup blocked):** correction phrases (▶ American, §5.7) are made by Gemini TTS (`gemini-3.8-flash-tts`, voice `Kore`, Interactions API) in the `ai` function's `speak` action and cached as `.wav` (24 kHz) in `reference-audio`. No word timings and no SSML rate: the slow style is asked for in the prompt. Free tier only: a spent quota answers 429, nothing is charged without a billing account. The bullets below describe the Azure variant, used for script sentences (Sprint 3) if Azure becomes available.
 - Generated **in the browser** with the Speech SDK `SpeechSynthesizer` (token auth, `audioConfig = null` → `result.audioData`), then uploaded to Storage.
 - Two variants per sentence: normal and slow (SSML `<prosody rate="-25%">`), generated on demand.
 - Cache key: `sha256(text | voice | rate)` → skip synthesis if the file exists.
@@ -245,7 +246,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
  Principle (Hebrew): direct translation mixes "put to work" and "put into practice".
 ```
 - **▶ You:** plays the user's own audio slice. Anchoring: fuzzy-match `you_said_en` against Azure's word timeline within ±3 s of Gemini's approximate time; on a match (≥ 0.6) use Azure offsets + 150 ms padding, otherwise Gemini's times ± 0.5 s. Only the slice's bytes are downloaded (an HTTP Range request on the 16 kHz WAV). Hidden once the take's recording is deleted (§6), or when Gemini gave no time.
-- **▶ American:** Azure TTS of `american_en`, cached in `reference-audio/{user_id}/{sha256}.mp3` (the §5.2 key). Without Azure the button is disabled and the report says why once.
+- **▶ American:** Gemini TTS of `american_en` (`speak` action, §5.2 Plan B), cached in `reference-audio/{user_id}/{sha256}.wav` (the §5.2 key). If the free quota is spent the button is disabled and the report says why once.
 - Each correction is saved with the take so "Practice this" can reuse it later (Sprint 4).
 
 **Getting the AI feedback:** the report's AI section asks for it with a button, after the one-time privacy notice (§9). The `ai` function saves the report in `attempts.ai_feedback`, and the page reads it from there. A failure shows the function's message and a retry, and keeps any report already saved; the rest of the report never waits for Gemini. "New feedback" asks again, e.g. after the assessment adds its measurements.
@@ -437,7 +438,7 @@ create table coach_tips (                          -- §5.8, imported from Noteb
 
 **Storage (all private, signed URLs):**
 - `recordings/{user_id}/{attempt_id}.wav`
-- `reference-audio/{user_id}/{sha256}.mp3`
+- `reference-audio/{user_id}/{sha256}.wav`
 - `pptx/{user_id}/{lecture_id}.pptx`
 - `slides/{user_id}/{lecture_id}/{n}-{version}.webp|png` (a new version per render, so a re-render never comes back from a stale cache)
 
@@ -465,6 +466,7 @@ Calls `https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueT
 | `chat` | lecture + slide context, history, message | `{ reply, proposed_edit? }` |
 | `feedback` | see §5.4 | feedback JSON (§5.4) |
 | `keywords` | `{ slide_script }` | `{ keywords[] }`: up to 6, each found in the script |
+| `speak` | `{ text, voice? }`: text up to 300 characters, voice one of a short list of Gemini voices | `{ audio_base64, mime_type }`: a WAV the app caches in Storage |
 | `run_report` | `{ attempt_id }`. The function reads the take as the user: script, slide timeline, metrics, scores, weak words, `send_audio_to_llm`; it uploads the recording to the Files API. Selected tips + catalog index join in Sprint 2b (§5.8). | The report, also saved in `attempts.ai_feedback`: `{ version, model, prompt_version, created_at, heard_audio, summary_he, strengths_he[], improvements[], next_session_plan_he, corrections[], tips[] }` (`tips[]` from Sprint 2b) |
 
 Implementation: Gemini REST with `system_instruction`, `responseMimeType: "application/json"` + `responseSchema`; model from `GEMINI_MODEL`; retry 429/5xx with exponential backoff (max 2 retries); on failure return `503 { message_he }`. Audio only when `user_settings.send_audio_to_llm = true` (without audio the report has no Corrections section). The function reads and writes as the calling user, so RLS applies. Every answer is checked before it is saved or returned (`ai/contract.ts`): known topics and categories, slides that exist, times inside the take, at most 3 strengths, 3 improvements and 8 corrections (jarring first). Prompts carry a `PROMPT_VERSION`, saved with each report.

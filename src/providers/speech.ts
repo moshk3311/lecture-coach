@@ -48,3 +48,9 @@ export interface SpeechProvider {
   /** Scripted assessment of a long recording (a full run), segment by segment. */
   assessContinuous(request: ContinuousAssessmentRequest): Promise<ContinuousAssessmentResult>
 }
+
+/** A phrase read in a reference voice (the American model clip). Gemini TTS implements it today. */
+export interface ReferenceVoice {
+  /** WAV audio of `text`; `voice` names one of the provider's voices. */
+  speak(request: { text: string; voice: string }): Promise<{ audio: ArrayBuffer; mimeType: string }>
+}
