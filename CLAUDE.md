@@ -38,9 +38,9 @@ npx supabase secrets set KEY=value       # set server secrets
   - Take recording (AudioWorklet, 16 kHz WAV) with slide timestamps, `save_attempt`, timing and speech metrics, run report, run history, Azure usage meter.
   - Recording retention: keeps the newest 10 take recordings (owner's choice: 1 GB storage).
   - Assessment of a saved take (Azure continuous mode).
-  - `ai` function: `run_report` (recording through the Gemini Files API) and `keywords`; not deployed yet.
+  - `ai` function: `run_report` (recording through the Gemini Files API) and `keywords`; deployed 2026-10-04 with `GEMINI_API_KEY`/`GEMINI_MODEL` set. `run_report` checked live on a 19 s take (feedback and Corrections shown); `keywords` (L3) and the Files API limits on long takes not checked yet.
   - The report's AI section: one-time privacy notice, feedback, Corrections cards. ▶ your voice is cut from the take with a byte range and anchored to Azure's words; ▶ American voice is Azure TTS cached in `reference-audio`. Plus the audio switch in Settings and memorization level L3.
-  - All of it untested against the live APIs. Waiting on: the Gemini key (deploy `ai`, then a live check of `run_report`, `keywords` and the Files API limits), the Azure key (assessment, American voice), the spike report.
+  - Waiting on: the live check of `keywords` and of a full-length take, the Azure key (assessment, American voice), the spike report.
   - Migration `20260927161100_save_attempt` applied via the Supabase MCP.
   - Azure signup, 2026-10-01: Microsoft blocked account creation ("unusual activity") through both GitHub and Gmail. Retry after 24 h, without VPN or iCloud Private Relay, or from another network. If it stays blocked, decide on a plan without Azure (it loses phoneme-level scores).
 - [ ] Sprint 2b — Coach tips in the run report · tips draft (44, from the NotebookLM notebook "Storytelling") waiting for approval; working copy in `private/coach-tips/` (gitignored, so it is not in cloud sessions: keep a copy)
