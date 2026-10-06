@@ -157,6 +157,51 @@ export type Database = {
           },
         ]
       }
+      coach_tips: {
+        Row: {
+          active: boolean
+          body_he: string
+          category: string
+          example_en: string | null
+          id: string
+          rotating: boolean
+          slug: string
+          sources: Json
+          title_he: string
+          triggers: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          body_he: string
+          category: string
+          example_en?: string | null
+          id?: string
+          rotating?: boolean
+          slug: string
+          sources?: Json
+          title_he: string
+          triggers?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          active?: boolean
+          body_he?: string
+          category?: string
+          example_en?: string | null
+          id?: string
+          rotating?: boolean
+          slug?: string
+          sources?: Json
+          title_he?: string
+          triggers?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       lectures: {
         Row: {
           audience: string | null
