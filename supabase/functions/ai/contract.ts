@@ -98,6 +98,25 @@ export type RunReportFeedback = {
 
 export type KeywordsResult = { keywords: string[] }
 
+/** A drafted script for one slide (§5.1 AI script drafting): a proposal the owner accepts or refuses. */
+export type ScriptDraft = {
+  /** Spoken American English, one paragraph per line, as the script editor stores it. */
+  script_en: string
+  /** The bridge sentence into the next slide (the "Before you click" line); null on the last slide. */
+  transition_line: string | null
+  /** Why it is written this way, in Hebrew. */
+  notes_he: string
+  words: number
+  /** Speaking time of the script at 140 words per minute. */
+  estimated_seconds: number
+  /** The slide's time budget, when there is one. */
+  budget_seconds: number | null
+  /** Gemini saw the slide's picture, not only its text. */
+  saw_image: boolean
+  model: string
+  prompt_version: string
+}
+
 export const MAX_STRENGTHS = 3
 export const MAX_IMPROVEMENTS = 3
 export const MAX_CORRECTIONS = 8
@@ -170,6 +189,13 @@ export const RUN_REPORT_SCHEMA = {
   },
   required: ['summary_he', 'strengths_he', 'improvements', 'next_session_plan_he', 'corrections', 'tips'],
   propertyOrdering: ['summary_he', 'strengths_he', 'improvements', 'next_session_plan_he', 'corrections', 'tips'],
+}
+
+export const DRAFT_SCHEMA = {
+  type: 'OBJECT',
+  properties: { script_en: STRING, transition_line_en: { type: 'STRING', nullable: true }, notes_he: STRING },
+  required: ['script_en', 'transition_line_en', 'notes_he'],
+  propertyOrdering: ['script_en', 'transition_line_en', 'notes_he'],
 }
 
 export const KEYWORDS_SCHEMA = {
@@ -316,6 +342,48 @@ function correction(item: unknown, context: RunReportContext): Correction[] {
       approx_end_sec: start === null ? null : Math.max(start, end ?? start),
     },
   ]
+}
+
+export type DraftContext = {
+  budgetSeconds: number | null
+  sawImage: boolean
+  isLastSlide: boolean
+  model: string
+  promptVersion: string
+}
+
+/** Words per minute the planned time of a slide is based on (src/features/present/plan.ts). */
+export const DRAFT_WPM = 140
+const HEBREW = /[\u0590-\u05FF]/
+
+/**
+ * Checks a drafted script: English only (Hebrew letters mean the model answered in the wrong
+ * language), one paragraph per line, its speaking time worked out here, and no bridge sentence on
+ * the last slide.
+ */
+export function normalizeDraft(raw: unknown, context: DraftContext): ScriptDraft {
+  if (!isObject(raw)) throw new InvalidAnswer('draft_script: the answer is not an object')
+  const script = (typeof raw.script_en === 'string' ? raw.script_en : '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+  const words = script.match(WORD)?.length ?? 0
+  if (!words) throw new InvalidAnswer('draft_script: the answer has no script')
+  if (HEBREW.test(script)) throw new InvalidAnswer('draft_script: the script is not in English')
+
+  const bridge = text(raw.transition_line_en)
+  return {
+    script_en: script,
+    transition_line: context.isLastSlide || !bridge || HEBREW.test(bridge) ? null : bridge,
+    notes_he: text(raw.notes_he),
+    words,
+    estimated_seconds: Math.round((words * 60) / DRAFT_WPM),
+    budget_seconds: context.budgetSeconds,
+    saw_image: context.sawImage,
+    model: context.model,
+    prompt_version: context.promptVersion,
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { InvalidAnswer, normalizeKeywords, normalizeRunReport, type RunReportContext } from './contract.ts'
+import { type DraftContext, InvalidAnswer, normalizeDraft, normalizeKeywords, normalizeRunReport, type RunReportContext } from './contract.ts'
 
 const context: RunReportContext = {
   heardAudio: true,
@@ -216,5 +216,44 @@ describe('normalizeRunReport tips', () => {
   it('drops unknown triggers, tips without a personal line, and nulls bad slides', () => {
     expect(tips([tip({ trigger: 'angry' }), tip({ personal_he: '  ' })])).toEqual([])
     expect(tips([tip({ slide: 99 })])?.[0]?.slide).toBeNull()
+  })
+})
+
+describe('normalizeDraft', () => {
+  const draftContext: DraftContext = { budgetSeconds: 60, sawImage: true, isLastSlide: false, model: 'gemini-test', promptVersion: 'v-test' }
+  const draft = (fields: Record<string, unknown> = {}) => ({
+    script_en: '  Here is the plant.   It makes fertilizer.\n\n\nWe run it day and night.  ',
+    transition_line_en: ' Now, how does it work? ',
+    notes_he: ' קיצרתי את הפתיחה. ',
+    ...fields,
+  })
+
+  it('keeps one paragraph per line, counts the words and works out the speaking time', () => {
+    expect(normalizeDraft(draft(), draftContext)).toEqual({
+      script_en: 'Here is the plant. It makes fertilizer.\nWe run it day and night.',
+      transition_line: 'Now, how does it work?',
+      notes_he: 'קיצרתי את הפתיחה.',
+      words: 13,
+      estimated_seconds: 6,
+      budget_seconds: 60,
+      saw_image: true,
+      model: 'gemini-test',
+      prompt_version: 'v-test',
+    })
+  })
+
+  it('gives the last slide no bridge sentence', () => {
+    expect(normalizeDraft(draft(), { ...draftContext, isLastSlide: true }).transition_line).toBeNull()
+  })
+
+  it('drops an empty or Hebrew bridge sentence', () => {
+    expect(normalizeDraft(draft({ transition_line_en: null }), draftContext).transition_line).toBeNull()
+    expect(normalizeDraft(draft({ transition_line_en: 'עכשיו נעבור הלאה' }), draftContext).transition_line).toBeNull()
+  })
+
+  it('refuses an answer with no script or a script in Hebrew', () => {
+    expect(() => normalizeDraft(draft({ script_en: '  \n ' }), draftContext)).toThrow(InvalidAnswer)
+    expect(() => normalizeDraft(draft({ script_en: 'This is the plant. זה המפעל.' }), draftContext)).toThrow(InvalidAnswer)
+    expect(() => normalizeDraft(null, draftContext)).toThrow(InvalidAnswer)
   })
 })

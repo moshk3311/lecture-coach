@@ -3,6 +3,7 @@
 import { type AuthedUser, requireUser } from '../_shared/auth.ts'
 import { corsHeaders, errorJson, json } from '../_shared/http.ts'
 import { InvalidAnswer } from './contract.ts'
+import { draftScript } from './draft.ts'
 import { type GeminiConfig, geminiConfig, GeminiError } from './gemini.ts'
 import { keywords } from './keywords.ts'
 import { runReport } from './report.ts'
@@ -12,6 +13,7 @@ import { speak } from './speech.ts'
 type Action = (user: AuthedUser, payload: unknown, gemini: GeminiConfig) => Promise<unknown>
 
 const ACTIONS = new Map<string, Action>([
+  ['draft_script', draftScript],
   ['keywords', keywords],
   ['run_report', runReport],
   ['speak', speak],

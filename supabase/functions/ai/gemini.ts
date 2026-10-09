@@ -28,7 +28,10 @@ export class GeminiError extends Error {
   }
 }
 
-export type Part = { text: string } | { file_data: { mime_type: string; file_uri: string } }
+export type Part =
+  | { text: string }
+  | { file_data: { mime_type: string; file_uri: string } }
+  | { inline_data: { mime_type: string; data: string } }
 
 type GenerateResponse = {
   candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]
