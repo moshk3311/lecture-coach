@@ -288,7 +288,11 @@ The app never calls NotebookLM.
 - It may add up to 2 tips for what only listening reveals (the Gemini triggers above). It uses a catalog slug when one fits. Otherwise the tip has `from_notebook: false` and is shown as "הצעה כללית, לא מהמחברת".
 - Unknown slugs are dropped.
 
-**Fallback:** if Gemini fails or its quota is used up, the rule tips stay, and a "נסה שוב" button re-requests the AI layer. If the catalog is empty, only AI tips show, all labeled as general.
+**Without Azure (Plan B, 2026-10-04):** the speech triggers (`pace_*`, `few_pauses`, `long_pauses`, `fillers`, `monotone`, `and_heavy`, `low_you`) have no measurement. For a take that is not assessed, Gemini may report them from listening (counted as its extras, evidence = the quoted moment, never a number). Once Azure scores the take, the rules own these triggers and Gemini's reports of them are dropped. `low_coverage` needs the assessment and is never reported by Gemini.
+
+**Where it runs:** the rule choice (`src/lib/tips.ts`) runs in the app when the report opens and is saved in `attempts.metrics.tips` (`[{slug, trigger, evidence_he, slide}]`; `trigger` null marks the rotating tip). `run_report` reads those saved tips and the catalog index (`coach_tips`, active), and answers with `tips[]`: an anchor for each rule tip (same slug) plus at most 2 extras. The app shows the rule tips at once and merges Gemini's anchors and extras when the report exists. Drafted thresholds are in `THRESHOLDS` (`src/lib/tips.ts`).
+
+**Fallback:** if Gemini fails or its quota is used up, the rule tips stay, and the AI feedback's retry re-requests the AI layer. If the catalog is empty, only AI tips show, all labeled as general.
 
 **Card:** title · body · evidence chip · English example (LTR) · source link ("מתוך: speaker — talk", opens YouTube). Latin text inside Hebrew fields is wrapped LTR. The tips are saved with the take: rule tips in `attempts.metrics.tips`, AI tips in `attempts.ai_feedback.tips`.
 
@@ -510,6 +514,8 @@ Prompt rule for corrections: "Listen as a native American listener. Quote exactl
 }
 ```
 Prompt rule for tips: "Anchor every tip to one moment you heard. Use only slugs from the catalog for notebook tips. Never present your own advice as coming from the notebook."
+
+Checks before saving (`reportTips` in `contract.ts`): the trigger is a known one; `personal_he` is not empty; a slug must be in the catalog and appears once; a tip with no slug needs its own `title_he` and `body_he` and is never `from_notebook`; extras (slugs that are not rule tips) are at most 2, need the recording, and only for triggers Gemini may report; `said_en` and `approx_start_sec` are null without the recording. `tips` is absent in reports saved before Sprint 2b.
 
 ---
 

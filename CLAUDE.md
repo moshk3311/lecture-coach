@@ -43,6 +43,10 @@ npx supabase secrets set KEY=value       # set server secrets
   - Waiting on: the live check of `keywords` and of a full-length take, a live check of `speak` (free tier only, never enable billing), the Azure key (phoneme assessment only), the spike report.
   - Migration `20260927161100_save_attempt` applied via the Supabase MCP.
   - Azure signup, 2026-10-01: Microsoft blocked account creation ("unusual activity") through both GitHub and Gmail. Retry after 24 h, without VPN or iCloud Private Relay, or from another network. If it stays blocked, decide on a plan without Azure (it loses phoneme-level scores).
-- [ ] Sprint 2b — Coach tips in the run report · tips draft (44, from the NotebookLM notebook "Storytelling") waiting for approval; working copy in `private/coach-tips/` (gitignored, so it is not in cloud sessions: keep a copy)
+- [ ] Sprint 2b — Coach tips in the run report · built, deployed `ai` (2026-10-07), not pushed to Pages yet:
+  - Owner approved the 44 tips (2026-10-06); imported into `coach_tips` (migration `20261006173811_coach_tips` applied via the Supabase MCP). Content only in the DB; the working copy stays in `private/coach-tips/` (gitignored, so it is not in cloud sessions: keep a copy).
+  - Rules (`src/lib/tips.ts`: `detectIssues`, `selectTips`, tested) pick up to 3 tips from timing, Azure speech metrics and history; saved in `attempts.metrics.tips`; shown at the end of the run report with evidence and sources. `run_report` anchors them to a moment and adds up to 2 tips from listening. Without Azure, Gemini reports the speech triggers from listening (ARCHITECTURE §5.8).
+  - Not done: calibrating the thresholds on 3+ real takes; checking the tips and anchors live on a real take (needs the Pages build).
+  - e2e uses a made-up catalog (`e2e/lib/tips.js`), never the real tips.
 - [ ] Sprint 3 — Script Studio + reference audio
 - [ ] Sprint 4 — Sentence practice, AI feedback, progress
