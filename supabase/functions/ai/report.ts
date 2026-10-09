@@ -5,7 +5,7 @@ import { userDb } from '../_shared/userDb.ts'
 import { normalizeRunReport, RUN_REPORT_SCHEMA, type RunReportFeedback } from './contract.ts'
 import { generateJson, type GeminiConfig, type Part, uploadFile } from './gemini.ts'
 import { PROMPT_VERSION } from './prompts/coach.ts'
-import { RUN_REPORT_SYSTEM, runReportPrompt } from './prompts/runReport.ts'
+import { type CatalogEntry, RUN_REPORT_SYSTEM, runReportPrompt } from './prompts/runReport.ts'
 import { type AttemptRow, type LectureRow, reportInput } from './reportInput.ts'
 import { idField, RequestError } from './request.ts'
 
@@ -16,13 +16,15 @@ export async function runReport(user: AuthedUser, payload: unknown, gemini: Gemi
   const attempt = await db.one<AttemptRow>(`attempts?id=eq.${idField(payload, 'attempt_id')}&select=${ATTEMPT_COLUMNS}`)
   if (!attempt || attempt.mode !== 'full_run') throw new RequestError('החזרה לא נמצאה.', 404)
 
-  const [lecture, settings] = await Promise.all([
+  const [lecture, settings, catalog] = await Promise.all([
     attempt.lecture_id ? db.one<LectureRow>(`lectures?id=eq.${attempt.lecture_id}&select=title,audience,target_minutes`) : null,
     db.one<{ send_audio_to_llm: boolean }>('user_settings?select=send_audio_to_llm'),
+    // The catalog is an extra: without it the report still comes, with general tips only.
+    db.many<CatalogEntry>('coach_tips?active=eq.true&select=slug,title_he,triggers&order=slug').catch((): CatalogEntry[] => []),
   ])
   // The recording goes to Gemini only while the owner allows it (§9) and while it is kept (§6).
   const withAudio = (settings?.send_audio_to_llm ?? true) && Boolean(attempt.audio_path)
-  const input = reportInput(attempt, lecture, withAudio)
+  const input = reportInput(attempt, lecture, withAudio, catalog)
 
   // Gemini reads a file best when it comes before the text about it.
   const parts: Part[] = []
@@ -40,6 +42,9 @@ export async function runReport(user: AuthedUser, payload: unknown, gemini: Gemi
     model: gemini.model,
     promptVersion: PROMPT_VERSION,
     createdAt: new Date().toISOString(),
+    catalogSlugs: catalog.map((tip) => tip.slug),
+    ruleSlugs: input.ruleTips.map((tip) => tip.slug),
+    assessed: input.speech !== null,
   })
   await db.update(`attempts?id=eq.${attempt.id}`, { ai_feedback: report })
   return report

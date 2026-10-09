@@ -44,6 +44,8 @@ describe('reportInput', () => {
       ],
       speech: null,
       script: 'Welcome everyone.',
+      catalog: [],
+      ruleTips: [],
     })
   })
 
@@ -85,5 +87,22 @@ describe('reportInput', () => {
       weakest: [{ word: 'phosphate', accuracy: 41 }],
       scores: { pronunciation: 82.4, accuracy: null, fluency: null, prosody: 71 },
     })
+  })
+
+  it('reads the tips saved with the take, field by field, and the catalog it is given', () => {
+    const tips = [
+      { slug: 'pace-calm', trigger: 'pace_fast', evidence_he: '172 מילים לדקה', slide: 4 },
+      { slug: 'open-body', trigger: null, evidence_he: null, slide: null },
+      { trigger: 'fillers' },
+      'oops',
+    ]
+    const catalog = [{ slug: 'pace-calm', title_he: 'להאט', triggers: ['pace_fast'] }]
+    const input = reportInput({ ...attempt, metrics: { ...timing, tips } }, null, true, catalog)
+    expect(input.ruleTips).toEqual([
+      { slug: 'pace-calm', trigger: 'pace_fast', evidence_he: '172 מילים לדקה' },
+      { slug: 'open-body', trigger: null, evidence_he: null },
+    ])
+    expect(input.catalog).toEqual(catalog)
+    expect(reportInput(attempt, null, true).ruleTips).toEqual([])
   })
 })

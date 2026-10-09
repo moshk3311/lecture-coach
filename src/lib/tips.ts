@@ -2,34 +2,10 @@
 // pure choice of which catalog tips to show for them. Thresholds are the draft ones kept with the
 // catalog; calibrate them on real takes. Pure and unit-tested.
 import { formatClock } from './format'
+import { TIP_TRIGGERS, type TipTrigger } from '../../supabase/functions/ai/contract.ts'
 import { WPM_BAND } from './metrics'
 
-/** Every trigger a tip can have (the catalog's `triggers`). */
-export const TIP_TRIGGERS = [
-  'pace_fast',
-  'pace_slow',
-  'few_pauses',
-  'long_pauses',
-  'fillers',
-  'monotone',
-  'overtime',
-  'slide_overrun',
-  'low_coverage',
-  'and_heavy',
-  'low_you',
-  'long_intro',
-  'first_run',
-  'repeat_issue',
-  'many_issues',
-  'low_energy',
-  'flat_emotion',
-  'no_hook',
-  'no_key_point',
-  'no_story',
-  'weak_ending',
-] as const
-
-export type TipTrigger = (typeof TIP_TRIGGERS)[number]
+export { TIP_TRIGGERS, type TipTrigger }
 
 export const TRIGGER_LABELS_HE: Record<TipTrigger, string> = {
   pace_fast: 'קצב מהיר',

@@ -8,6 +8,9 @@ const context: RunReportContext = {
   model: 'gemini-test',
   promptVersion: 'v-test',
   createdAt: '2026-10-01T12:00:00.000Z',
+  catalogSlugs: ['pace-calm', 'pause-before-key', 'hook-real-story', 'close-with-the-line'],
+  ruleSlugs: ['pace-calm'],
+  assessed: false,
 }
 
 const correction = (fields: Record<string, unknown> = {}) => ({
@@ -44,6 +47,7 @@ describe('normalizeRunReport', () => {
       improvements: [{ topic: 'energy', text_he: 'יותר אנרגיה בסיום', slide: 5 }],
       next_session_plan_he: 'לעצור לפני כל מספר.',
       corrections: [correction()],
+      tips: [],
     })
   })
 
@@ -144,5 +148,73 @@ describe('normalizeKeywords', () => {
   it('rejects an answer with no usable keyword', () => {
     expect(() => normalizeKeywords({ keywords: ['quality'] }, script)).toThrow(InvalidAnswer)
     expect(() => normalizeKeywords(null, script)).toThrow(InvalidAnswer)
+  })
+})
+
+const tip = (fields: Record<string, unknown> = {}) => ({
+  slug: 'pace-calm',
+  trigger: 'pace_fast',
+  slide: 3,
+  approx_start_sec: 61.26,
+  said_en: 'and then we moved on very quickly',
+  personal_he: 'בשקף 3 הקצב עלה.',
+  example_en: null,
+  title_he: null,
+  body_he: null,
+  ...fields,
+})
+
+describe('normalizeRunReport tips', () => {
+  const tips = (items: unknown[], over: Partial<RunReportContext> = {}) =>
+    normalizeRunReport(answer({ tips: items }), { ...context, ...over }).tips
+
+  it('keeps an anchor of a rule tip and marks it as from the notebook', () => {
+    expect(tips([tip()])).toEqual([{ ...tip(), from_notebook: true, approx_start_sec: 61.3 }])
+  })
+
+  it('drops a slug that is not in the catalog and repeats of a slug', () => {
+    expect(tips([tip({ slug: 'made-up' }), tip(), tip()])).toHaveLength(1)
+  })
+
+  it('keeps at most 2 extra tips, after the anchors, only for what can be heard', () => {
+    const extras = [
+      tip({ slug: 'hook-real-story', trigger: 'no_hook' }),
+      tip({ slug: 'close-with-the-line', trigger: 'weak_ending' }),
+      tip({ slug: null, trigger: 'no_story', title_he: 'סיפור', body_he: 'ספר סיפור.', example_en: 'Meet Dana.' }),
+    ]
+    const out = tips([...extras, tip()]) ?? []
+    expect(out.map((t) => t.slug)).toEqual(['pace-calm', 'hook-real-story', 'close-with-the-line'])
+  })
+
+  it('accepts the measured triggers as extras only for a take that was not assessed', () => {
+    const extra = tip({ slug: 'pause-before-key', trigger: 'few_pauses' })
+    expect(tips([extra])).toHaveLength(1)
+    expect(tips([extra], { assessed: true })).toHaveLength(0)
+    expect(tips([tip()], { assessed: true })).toHaveLength(1)
+  })
+
+  it('needs the recording for extras, and quotes nothing without it', () => {
+    const extra = tip({ slug: 'hook-real-story', trigger: 'no_hook' })
+    const out = tips([extra, tip()], { heardAudio: false }) ?? []
+    expect(out.map((t) => t.slug)).toEqual(['pace-calm'])
+    expect(out[0]).toMatchObject({ said_en: null, approx_start_sec: null })
+  })
+
+  it('gives a tip without a slug its own title and body, and never calls it the notebook\'s', () => {
+    const own = tip({ slug: null, from_notebook: true, trigger: 'no_story', title_he: ' סיפור ', body_he: 'ספר סיפור.', example_en: 'Meet Dana.' })
+    expect(tips([own])).toEqual([
+      expect.objectContaining({ slug: null, from_notebook: false, title_he: 'סיפור', body_he: 'ספר סיפור.', example_en: 'Meet Dana.' }),
+    ])
+    expect(tips([tip({ slug: null, trigger: 'no_story' })])).toEqual([])
+  })
+
+  it('treats every tip as general when the catalog is empty', () => {
+    const own = tip({ slug: null, trigger: 'no_story', title_he: 'סיפור', body_he: 'ספר סיפור.' })
+    expect(tips([tip(), own], { catalogSlugs: [], ruleSlugs: [] })).toHaveLength(1)
+  })
+
+  it('drops unknown triggers, tips without a personal line, and nulls bad slides', () => {
+    expect(tips([tip({ trigger: 'angry' }), tip({ personal_he: '  ' })])).toEqual([])
+    expect(tips([tip({ slide: 99 })])?.[0]?.slide).toBeNull()
   })
 })

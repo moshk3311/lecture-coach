@@ -27,6 +27,58 @@ export type Correction = {
 
 export type Improvement = { topic: DeliveryTopic; text_he: string; slide: number | null }
 
+/** Every trigger a coach tip can have (§5.8); the catalog's `triggers` use these names. */
+export const TIP_TRIGGERS = [
+  'pace_fast',
+  'pace_slow',
+  'few_pauses',
+  'long_pauses',
+  'fillers',
+  'monotone',
+  'overtime',
+  'slide_overrun',
+  'low_coverage',
+  'and_heavy',
+  'low_you',
+  'long_intro',
+  'first_run',
+  'repeat_issue',
+  'many_issues',
+  'low_energy',
+  'flat_emotion',
+  'no_hook',
+  'no_key_point',
+  'no_story',
+  'weak_ending',
+] as const
+
+export type TipTrigger = (typeof TIP_TRIGGERS)[number]
+
+/** What only listening reveals: Gemini may add a tip for these (§5.8). */
+export const HEARD_TRIGGERS: readonly TipTrigger[] = ['low_energy', 'flat_emotion', 'no_hook', 'no_key_point', 'no_story', 'weak_ending']
+
+/** Azure measures these; Gemini reports them only for a take that was not assessed (no Azure keys, or not yet scored). */
+export const LISTENED_TRIGGERS: readonly TipTrigger[] = ['pace_fast', 'pace_slow', 'few_pauses', 'long_pauses', 'fillers', 'monotone', 'and_heavy', 'low_you']
+
+/**
+ * A coach tip tied to a moment of the take (§5.8). A tip with a slug is one of the owner's catalog tips;
+ * without one (slug null) it is Gemini's own advice, with its own title and body, never shown as the notebook's.
+ */
+export type ReportTip = {
+  slug: string | null
+  from_notebook: boolean
+  trigger: TipTrigger
+  slide: number | null
+  approx_start_sec: number | null
+  /** The words said at that moment, or null (no recording, or none quoted). */
+  said_en: string | null
+  /** One Hebrew sentence that ties the tip to that moment. */
+  personal_he: string
+  example_en: string | null
+  title_he: string | null
+  body_he: string | null
+}
+
 /** Gemini's report on a full-run take, saved in attempts.ai_feedback (§5.7 run report). */
 export type RunReportFeedback = {
   version: 1
@@ -40,6 +92,8 @@ export type RunReportFeedback = {
   improvements: Improvement[]
   next_session_plan_he: string
   corrections: Correction[]
+  /** Anchors for the rule-chosen tips and up to 2 more from listening; absent in reports from before Sprint 2b. */
+  tips?: ReportTip[]
 }
 
 export type KeywordsResult = { keywords: string[] }
@@ -48,6 +102,9 @@ export const MAX_STRENGTHS = 3
 export const MAX_IMPROVEMENTS = 3
 export const MAX_CORRECTIONS = 8
 export const MAX_KEYWORDS = 6
+/** Tips Gemini adds beyond the rule-chosen ones. */
+export const MAX_EXTRA_TIPS = 2
+export const MAX_REPORT_TIPS = 5
 
 // ---------------------------------------------------------------------------
 // Response schemas (Gemini `responseSchema`, an OpenAPI subset)
@@ -72,6 +129,26 @@ const CORRECTION_SCHEMA = {
   propertyOrdering: ['category', 'severity', 'you_said_en', 'american_en', 'principle_he', 'slide', 'approx_start_sec', 'approx_end_sec'],
 }
 
+const NULLABLE_STRING = { type: 'STRING', nullable: true }
+const NULLABLE_NUMBER = { type: 'NUMBER', nullable: true }
+
+const REPORT_TIP_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    slug: NULLABLE_STRING,
+    trigger: { type: 'STRING', enum: [...TIP_TRIGGERS] },
+    slide: SLIDE,
+    approx_start_sec: NULLABLE_NUMBER,
+    said_en: NULLABLE_STRING,
+    personal_he: STRING,
+    example_en: NULLABLE_STRING,
+    title_he: NULLABLE_STRING,
+    body_he: NULLABLE_STRING,
+  },
+  required: ['slug', 'trigger', 'slide', 'approx_start_sec', 'said_en', 'personal_he', 'example_en', 'title_he', 'body_he'],
+  propertyOrdering: ['slug', 'trigger', 'slide', 'approx_start_sec', 'said_en', 'personal_he', 'example_en', 'title_he', 'body_he'],
+}
+
 export const RUN_REPORT_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -89,9 +166,10 @@ export const RUN_REPORT_SCHEMA = {
     },
     next_session_plan_he: STRING,
     corrections: { type: 'ARRAY', items: CORRECTION_SCHEMA, maxItems: MAX_CORRECTIONS },
+    tips: { type: 'ARRAY', items: REPORT_TIP_SCHEMA, maxItems: MAX_REPORT_TIPS },
   },
-  required: ['summary_he', 'strengths_he', 'improvements', 'next_session_plan_he', 'corrections'],
-  propertyOrdering: ['summary_he', 'strengths_he', 'improvements', 'next_session_plan_he', 'corrections'],
+  required: ['summary_he', 'strengths_he', 'improvements', 'next_session_plan_he', 'corrections', 'tips'],
+  propertyOrdering: ['summary_he', 'strengths_he', 'improvements', 'next_session_plan_he', 'corrections', 'tips'],
 }
 
 export const KEYWORDS_SCHEMA = {
@@ -116,6 +194,12 @@ export type RunReportContext = {
   model: string
   promptVersion: string
   createdAt: string
+  /** Slugs of the owner's catalog; empty when the catalog is not imported (every tip is then general). */
+  catalogSlugs: string[]
+  /** Slugs of the tips the rules chose for this take (saved in metrics.tips). */
+  ruleSlugs: string[]
+  /** Azure has scored the take, so it owns the measured triggers. */
+  assessed: boolean
 }
 
 /**
@@ -152,7 +236,58 @@ export function normalizeRunReport(raw: unknown, context: RunReportContext): Run
     improvements: improvements.slice(0, MAX_IMPROVEMENTS),
     next_session_plan_he: text(raw.next_session_plan_he),
     corrections: corrections.slice(0, MAX_CORRECTIONS),
+    tips: reportTips(raw.tips, context),
   }
+}
+
+/**
+ * Keeps the tips the report can show. A tip with a slug needs that slug in the catalog (an unknown
+ * one is dropped), and appears once. A rule-chosen tip is kept as an anchor. Any other tip is an
+ * extra, at most 2: it needs the recording (it comes from listening) and a trigger Gemini may
+ * report. A tip with no slug is Gemini's own advice and needs its own title and body.
+ */
+function reportTips(value: unknown, context: RunReportContext): ReportTip[] {
+  const catalog = new Set(context.catalogSlugs)
+  const rule = new Set(context.ruleSlugs)
+  const seen = new Set<string>()
+  const anchors: ReportTip[] = []
+  const extras: ReportTip[] = []
+
+  for (const item of list(value)) {
+    if (!isObject(item)) continue
+    const trigger = oneOf(TIP_TRIGGERS, item.trigger)
+    const personal = text(item.personal_he)
+    if (!trigger || !personal) continue
+
+    const slug = text(item.slug) || null
+    if (slug !== null) {
+      if (!catalog.has(slug) || seen.has(slug)) continue
+      seen.add(slug)
+    }
+    const anchor = slug !== null && rule.has(slug)
+    if (!anchor) {
+      const hearable = HEARD_TRIGGERS.includes(trigger) || (!context.assessed && LISTENED_TRIGGERS.includes(trigger))
+      if (!context.heardAudio || !hearable) continue
+    }
+    const title = slug === null ? text(item.title_he) : ''
+    const body = slug === null ? text(item.body_he) : ''
+    if (slug === null && (!title || !body)) continue
+
+    const tip: ReportTip = {
+      slug,
+      from_notebook: slug !== null,
+      trigger,
+      slide: slideNumber(item.slide, context.slideCount),
+      approx_start_sec: context.heardAudio ? seconds(item.approx_start_sec, context.durationSec) : null,
+      said_en: context.heardAudio ? text(item.said_en) || null : null,
+      personal_he: personal,
+      example_en: slug === null ? text(item.example_en) || null : null,
+      title_he: slug === null ? title : null,
+      body_he: slug === null ? body : null,
+    }
+    ;(anchor ? anchors : extras).push(tip)
+  }
+  return [...anchors, ...extras.slice(0, MAX_EXTRA_TIPS)]
 }
 
 /** Categories where the American version must use different words; sound-based ones may repeat them. */

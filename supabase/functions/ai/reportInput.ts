@@ -2,7 +2,7 @@
 // `metrics` is the app's RunMetrics (src/features/runs/api.ts) stored as JSON, so it is read field
 // by field.
 import { isObject, list, num, text } from './json.ts'
-import type { RunReportInput, SlideFacts, SpeechFacts } from './prompts/runReport.ts'
+import type { CatalogEntry, RuleTip, RunReportInput, SlideFacts, SpeechFacts } from './prompts/runReport.ts'
 
 export type AttemptRow = {
   id: string
@@ -20,7 +20,7 @@ export type AttemptRow = {
 
 export type LectureRow = { title: string; audience: string | null; target_minutes: number | null }
 
-export function reportInput(attempt: AttemptRow, lecture: LectureRow | null, withAudio: boolean): RunReportInput {
+export function reportInput(attempt: AttemptRow, lecture: LectureRow | null, withAudio: boolean, catalog: CatalogEntry[] = []): RunReportInput {
   const metrics = isObject(attempt.metrics) ? attempt.metrics : {}
   return {
     title: lecture?.title || 'Untitled talk',
@@ -48,7 +48,19 @@ export function reportInput(attempt: AttemptRow, lecture: LectureRow | null, wit
     }),
     speech: speechFacts(metrics.speech, attempt),
     script: attempt.reference_text ?? '',
+    catalog,
+    ruleTips: ruleTips(metrics.tips),
   }
+}
+
+/** The tips the app saved with the take (metrics.tips), read field by field. */
+export function ruleTips(value: unknown): RuleTip[] {
+  return list(value).flatMap((tip): RuleTip[] => {
+    const slug = isObject(tip) ? text(tip.slug) : ''
+    return isObject(tip) && slug
+      ? [{ slug, trigger: text(tip.trigger) || null, evidence_he: text(tip.evidence_he) || null }]
+      : []
+  })
 }
 
 /** What the Azure assessment measured, or null when the take was not assessed. */

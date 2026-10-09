@@ -21,6 +21,11 @@ export function userDb(user: AuthedUser) {
       return rows[0] ?? null
     },
 
+    /** Every row a PostgREST query returns. */
+    async many<T>(query: string): Promise<T[]> {
+      return (await (await send(`/rest/v1/${query}`)).json()) as T[]
+    },
+
     async update(query: string, values: Record<string, unknown>): Promise<void> {
       await send(`/rest/v1/${query}`, {
         method: 'PATCH',

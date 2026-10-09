@@ -17,6 +17,11 @@ const input: RunReportInput = {
   ],
   speech: null,
   script: 'Welcome everyone.',
+  catalog: [
+    { slug: 'pace-calm', title_he: 'להאט', triggers: ['pace_fast'] },
+    { slug: 'open-body', title_he: 'גוף פתוח', triggers: [] },
+  ],
+  ruleTips: [{ slug: 'pace-calm', trigger: 'pace_fast', evidence_he: '172 מילים לדקה' }],
 }
 
 describe('runReportPrompt', () => {
@@ -60,5 +65,18 @@ describe('runReportPrompt', () => {
     expect(prompt).toContain('- script coverage: 91% (omitted, for example: the, granulation)')
     expect(prompt).toContain('- scores out of 100: pronunciation 82, accuracy 79, prosody 71')
     expect(prompt).toContain('- weakest words: phosphate 41')
+  })
+
+  it('lists the catalog and the rule tips with their measurements', () => {
+    const prompt = runReportPrompt(input)
+    expect(prompt).toContain('- pace-calm · pace_fast · להאט')
+    expect(prompt).toContain('- open-body · no trigger · גוף פתוח')
+    expect(prompt).toContain('- pace-calm · pace_fast · 172 מילים לדקה')
+  })
+
+  it('says so when there is no catalog and no rule tip', () => {
+    const prompt = runReportPrompt({ ...input, catalog: [], ruleTips: [] })
+    expect(prompt).toContain('(empty: use slug null for every tip)')
+    expect(prompt).toContain('(none)')
   })
 })
