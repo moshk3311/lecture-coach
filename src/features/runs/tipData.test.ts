@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Json } from '../../lib/database.types'
 import type { ReportTip } from '../../providers'
 import type { SelectedTip } from '../../lib/tips'
-import { savedTips, tipCards, tipHistory, tipSources, type CoachTip } from './coachTips'
+import { savedTips, tipCards, tipHistory, tipSources, type CoachTip } from './tipData'
 
 const source = { speaker: 'A', title: 'T', event: 'E', url: 'https://www.youtube.com/watch?v=x' }
 

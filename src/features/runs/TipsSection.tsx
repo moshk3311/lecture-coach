@@ -6,8 +6,9 @@ import { cardStyles } from '../../components/styles'
 import { formatClock } from '../../lib/format'
 import { TRIGGER_LABELS_HE } from '../../lib/tips'
 import type { RunDetail } from './api'
-import { CATEGORY_LABELS_HE, tipCards, useRuleTips, type TipCardData } from './coachTips'
+import { useRuleTips } from './coachTips'
 import { savedRunReport } from './feedback'
+import { CATEGORY_LABELS_HE, tipCards, type TipCardData } from './tipData'
 
 /**
  * "Tips for the next take" (§5.8): the rule tips at once, each with the measurement behind it, then
