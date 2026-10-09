@@ -34,6 +34,16 @@ run(async () => {
   check(db.attempts.find((a) => a.id === first).metrics.totalSeconds === 610, 'saving the tips keeps the take\'s metrics')
   await shot(page, 'tips')
 
+  // 1b. The AI feedback adds Gemini's anchors and extras to the same cards.
+  await page.getByRole('button', { name: 'הבנתי, בקש משוב' }).click()
+  await page.getByText('הפתיחה נמשכה זמן רב לפני שהגעת לנושא.').waitFor({ timeout: 10000 })
+  check(await page.getByText('“short operational overview”').isVisible(), 'a rule tip shows what was said at its moment')
+  check(await page.getByText('נשמע בהקלטה: קצב מהיר').isVisible(), 'a tip Gemini heard is labeled as such')
+  check(await page.getByText('הצעה כללית, לא מהמחברת').isVisible(), 'Gemini\'s own tip is labeled as general')
+  check((await cards(page).count()) === 5, `3 rule tips and 2 from Gemini (${await cards(page).count()})`)
+  check((await page.getByText('Meet Dana, the night-shift operator.').count()) === 1, 'the general tip has its own example')
+  await shot(page, 'tips-ai')
+
   // 2. Reading the report again changes nothing and saves nothing.
   const before = patches(db)
   await page.reload()

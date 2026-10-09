@@ -8,6 +8,7 @@ export type {
   CorrectionCategory,
   DeliveryTopic,
   Improvement,
+  ReportTip,
   RunReportFeedback,
   Severity,
 } from '../../supabase/functions/ai/contract.ts'

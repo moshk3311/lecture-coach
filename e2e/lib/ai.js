@@ -49,6 +49,26 @@ function aiReport({ heardAudio = true } = {}) {
           },
         ]
       : [],
+    // Anchors for the rule tips and what Gemini heard (slugs of lib/tips.js; the mocked answer is the same for every take).
+    tips: heardAudio
+      ? [
+          {
+            slug: 'e2e-intro', from_notebook: true, trigger: 'long_intro', slide: 1, approx_start_sec: 3.1,
+            said_en: 'short operational overview', personal_he: 'הפתיחה נמשכה זמן רב לפני שהגעת לנושא.',
+            example_en: null, title_he: null, body_he: null,
+          },
+          {
+            slug: 'e2e-pace', from_notebook: true, trigger: 'pace_fast', slide: 2, approx_start_sec: 11.5,
+            said_en: 'throughput of the plant', personal_he: 'בשקף 2 הקצב עלה בלי עצירה.',
+            example_en: null, title_he: null, body_he: null,
+          },
+          {
+            slug: null, from_notebook: false, trigger: 'no_story', slide: null, approx_start_sec: null,
+            said_en: null, personal_he: 'לא שמעתי סיפור או דוגמה עם אדם.',
+            example_en: 'Meet Dana, the night-shift operator.', title_he: 'להוסיף דמות אחת', body_he: 'ספר על אדם אחד שחווה את הבעיה.',
+          },
+        ]
+      : [],
   }
 }
 

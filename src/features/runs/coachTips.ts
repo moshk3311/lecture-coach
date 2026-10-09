@@ -14,6 +14,7 @@ import {
   type TipHistory,
 } from '../../lib/tips'
 import { supabase } from '../../lib/supabase'
+import type { ReportTip } from '../../providers'
 import { runKeys, useLectureRuns, type RunDetail, type RunMetrics } from './api'
 
 export type CoachTip = Tables<'coach_tips'>
@@ -150,4 +151,77 @@ export function useRuleTips(run: RunDetail) {
   }, [key, stale])
 
   return { tips, catalog: catalog.data ?? [], loading: tips === null && !catalog.isError, failed: catalog.isError }
+}
+
+/** What a tip card shows: the tip, and where it came from (§5.8 Card). */
+export type TipCardData = {
+  key: string
+  /** rule: from the measurements · rotating: fills a short list · heard: Gemini heard it · general: Gemini's own advice. */
+  origin: 'rule' | 'rotating' | 'heard' | 'general'
+  category: string | null
+  title_he: string
+  body_he: string
+  example_en: string | null
+  sources: TipSource[]
+  trigger: SelectedTip['trigger']
+  /** The measurement behind a rule tip. */
+  evidence_he: string | null
+  /** Where in the take Gemini placed it, with a line tying it to that moment. */
+  moment: { personal_he: string; said_en: string | null; slide: number | null; startSec: number | null } | null
+}
+
+const momentOf = (tip: ReportTip | undefined): TipCardData['moment'] =>
+  tip ? { personal_he: tip.personal_he, said_en: tip.said_en, slide: tip.slide, startSec: tip.approx_start_sec } : null
+
+/**
+ * The cards of a report: the rule tips first (each with Gemini's anchor when it gave one), then the
+ * tips Gemini added from listening. A Gemini tip with a slug the catalog does not have is dropped.
+ */
+export function tipCards(rule: SelectedTip[], catalog: CoachTip[], ai: ReportTip[]): TipCardData[] {
+  const bySlug = new Map(catalog.map((tip) => [tip.slug, tip]))
+  const anchors = new Map(ai.flatMap((tip) => (tip.slug ? [[tip.slug, tip] as const] : [])))
+  const fromCatalog = (tip: CoachTip) => ({
+    category: tip.category,
+    title_he: tip.title_he,
+    body_he: tip.body_he,
+    example_en: tip.example_en,
+    sources: tipSources(tip.sources),
+  })
+
+  const cards: TipCardData[] = []
+  for (const chosen of rule) {
+    const tip = bySlug.get(chosen.slug)
+    if (!tip) continue
+    cards.push({
+      key: tip.slug,
+      origin: chosen.trigger ? 'rule' : 'rotating',
+      ...fromCatalog(tip),
+      trigger: chosen.trigger,
+      evidence_he: chosen.evidence_he,
+      moment: momentOf(anchors.get(tip.slug)),
+    })
+  }
+  const shown = new Set(cards.map((card) => card.key))
+  ai.forEach((tip, i) => {
+    if (tip.slug === null) {
+      cards.push({
+        key: `general-${i}`,
+        origin: 'general',
+        category: null,
+        title_he: tip.title_he ?? '',
+        body_he: tip.body_he ?? '',
+        example_en: tip.example_en,
+        sources: [],
+        trigger: tip.trigger,
+        evidence_he: null,
+        moment: momentOf(tip),
+      })
+      return
+    }
+    const entry = bySlug.get(tip.slug)
+    if (!entry || shown.has(tip.slug)) return
+    shown.add(tip.slug)
+    cards.push({ key: tip.slug, origin: 'heard', ...fromCatalog(entry), trigger: tip.trigger, evidence_he: null, moment: momentOf(tip) })
+  })
+  return cards
 }

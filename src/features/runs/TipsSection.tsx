@@ -3,20 +3,22 @@ import { En } from '../../components/En'
 import { MixedText } from '../../components/MixedText'
 import { stagger } from '../../components/stagger'
 import { cardStyles } from '../../components/styles'
-import { TRIGGER_LABELS_HE, type SelectedTip } from '../../lib/tips'
-import { CATEGORY_LABELS_HE, tipSources, useRuleTips, type CoachTip } from './coachTips'
+import { formatClock } from '../../lib/format'
+import { TRIGGER_LABELS_HE } from '../../lib/tips'
 import type { RunDetail } from './api'
+import { CATEGORY_LABELS_HE, tipCards, useRuleTips, type TipCardData } from './coachTips'
+import { savedRunReport } from './feedback'
 
-/** "Tips for the next take" (§5.8): 2–3 tips from the owner's notebook, each with the measurement behind it. */
+/**
+ * "Tips for the next take" (§5.8): the rule tips at once, each with the measurement behind it, then
+ * what Gemini added from listening once the AI feedback has been requested.
+ */
 export function TipsSection({ run }: { run: RunDetail }) {
   const { tips, catalog, loading, failed } = useRuleTips(run)
-  const bySlug = new Map(catalog.map((tip) => [tip.slug, tip]))
-  const cards = (tips ?? []).flatMap((chosen) => {
-    const tip = bySlug.get(chosen.slug)
-    return tip ? [{ chosen, tip }] : []
-  })
-  // No catalog (not imported, or it failed to load): the report simply ends without this section.
-  if (failed || (!loading && !cards.length)) return null
+  const ai = savedRunReport(run.ai_feedback)?.tips ?? []
+  const cards = tipCards(tips ?? [], catalog, ai)
+  // Nothing to show (no catalog and no Gemini tips): the report simply ends without this section.
+  if (!cards.length && (!loading || failed)) return null
 
   return (
     <section className={`${cardStyles} rise-in mt-6 p-5 md:p-6`} style={stagger(7)}>
@@ -24,53 +26,80 @@ export function TipsSection({ run }: { run: RunDetail }) {
         <Lightbulb size={18} className="text-accent" aria-hidden="true" />
         טיפים לחזרה הבאה
       </h2>
-      {loading ? (
+      {loading && !cards.length ? (
         <p className="mt-3 text-sm text-ink-faint" role="status">
           טוען טיפים…
         </p>
       ) : (
         <ol className="mt-4 space-y-3">
-          {cards.map(({ chosen, tip }) => (
-            <TipCard key={tip.slug} chosen={chosen} tip={tip} />
+          {cards.map((card) => (
+            <TipCard key={card.key} card={card} />
           ))}
         </ol>
       )}
+      {!ai.length ? (
+        <p className="mt-4 text-xs text-ink-faint">אחרי שתבקש משוב AI, Gemini יצמיד כל טיפ לרגע בהקלטה ויוסיף טיפים ממה ששמע.</p>
+      ) : null}
     </section>
   )
 }
 
-function TipCard({ chosen, tip }: { chosen: SelectedTip; tip: CoachTip }) {
-  const sources = tipSources(tip.sources)
+function originLabel(card: TipCardData): string {
+  if (card.origin === 'rotating') return 'עוד טיפ מהמחברת'
+  if (card.origin === 'general') return 'הצעה כללית, לא מהמחברת'
+  const label = card.trigger ? TRIGGER_LABELS_HE[card.trigger] : ''
+  return card.origin === 'heard' ? `נשמע בהקלטה${label ? `: ${label}` : ''}` : label
+}
+
+function TipCard({ card }: { card: TipCardData }) {
+  const { moment } = card
   return (
     <li className="rounded-xl border border-rule p-4">
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-        <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent">{CATEGORY_LABELS_HE[tip.category] ?? tip.category}</span>
-        {chosen.trigger ? (
-          <span className="text-ink-faint">· {TRIGGER_LABELS_HE[chosen.trigger]}</span>
-        ) : (
-          <span className="text-ink-faint">· עוד טיפ מהמחברת</span>
-        )}
+        {card.category ? (
+          <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent">{CATEGORY_LABELS_HE[card.category] ?? card.category}</span>
+        ) : null}
+        <span className={card.origin === 'general' ? 'font-medium text-warn' : 'text-ink-faint'}>{originLabel(card)}</span>
       </p>
       <h3 className="mt-2 font-medium">
-        <MixedText text={tip.title_he} />
+        <MixedText text={card.title_he} />
       </h3>
-      {chosen.evidence_he ? (
+      {card.evidence_he ? (
         <p className="mt-2 rounded-lg bg-warn-soft px-3 py-2 text-sm">
-          <MixedText text={chosen.evidence_he} />
+          <MixedText text={card.evidence_he} />
+        </p>
+      ) : null}
+      {moment ? (
+        <p className="mt-2 text-sm leading-relaxed">
+          <MixedText text={moment.personal_he} />
+          {moment.said_en ? (
+            <>
+              {' '}
+              <En className="text-ink-soft italic">“{moment.said_en}”</En>
+            </>
+          ) : null}
+          {moment.slide || moment.startSec !== null ? (
+            <span className="text-xs text-ink-faint">
+              {' '}
+              ({moment.slide ? `שקף ${moment.slide}` : ''}
+              {moment.slide && moment.startSec !== null ? ' · ' : ''}
+              {moment.startSec !== null ? <span dir="ltr">{formatClock(moment.startSec)}</span> : null})
+            </span>
+          ) : null}
         </p>
       ) : null}
       <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-        <MixedText text={tip.body_he} />
+        <MixedText text={card.body_he} />
       </p>
-      {tip.example_en ? (
+      {card.example_en ? (
         <p className="mt-3 text-sm">
           <span className="text-xs text-ink-faint">דוגמה: </span>
-          <En className="font-medium">{tip.example_en}</En>
+          <En className="font-medium">{card.example_en}</En>
         </p>
       ) : null}
-      {sources.length ? (
+      {card.sources.length ? (
         <ul className="mt-3 space-y-1 text-xs text-ink-faint">
-          {sources.map((source) => (
+          {card.sources.map((source) => (
             <li key={source.url}>
               <a href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2 hover:text-ink">
                 מתוך: <En>{source.speaker}</En> — <En>{source.title}</En>
