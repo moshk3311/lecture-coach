@@ -1,5 +1,6 @@
 // Seed data: two lectures (one with a 3-slide script) and helpers for saved takes.
 const { createDb, sentenceRow, uuid, USER_ID } = require('./mock')
+const { coachTipRows } = require('./tips')
 
 const LECTURE_ID = '22222222-2222-4222-8222-222222222222'
 
@@ -22,7 +23,7 @@ function basicSeed() {
     id: uuid(), user_id: USER_ID, title: 'שיחת פתיחה לכנס', audience: null, target_minutes: null, pptx_path: null,
     status: 'draft', created_at: '2026-09-20T10:00:00Z', updated_at: '2026-09-21T10:00:00Z',
   }
-  const db = createDb({ lectures: [lecture, other], slides, sentences })
+  const db = createDb({ lectures: [lecture, other], slides, sentences, coachTips: coachTipRows() })
   db.lectureId = LECTURE_ID
   return db
 }

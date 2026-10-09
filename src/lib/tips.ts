@@ -94,7 +94,8 @@ export type Issue = {
   slide: number | null
 }
 
-const META: readonly TipTrigger[] = ['first_run', 'repeat_issue', 'many_issues']
+/** Triggers about the take's context, not about something measured in it. */
+export const CONTEXT_TRIGGERS: readonly TipTrigger[] = ['first_run', 'repeat_issue', 'many_issues']
 
 const cap = (value: number) => Math.min(1, Math.max(0, value))
 const pct = (value: number) => Math.round(value * 100)
@@ -163,7 +164,7 @@ export function detectIssues(facts: TipFacts, history: TipHistory): Issue[] {
   }
 
   // Context triggers come last: they depend on what was found above.
-  const measured = found.filter((issue) => !META.includes(issue.trigger))
+  const measured = found.filter((issue) => !CONTEXT_TRIGGERS.includes(issue.trigger))
   if (history.previousTopTrigger && measured.some((issue) => issue.trigger === history.previousTopTrigger)) {
     add('repeat_issue', 0.45, `גם בחזרה הקודמת הנושא המרכזי היה: ${TRIGGER_LABELS_HE[history.previousTopTrigger]}`)
   }

@@ -121,6 +121,7 @@ export async function discardTakeAudio(userId: string, attemptId: string): Promi
 export function useLectureRuns(lectureId: string) {
   return useQuery({
     queryKey: runKeys.lecture(lectureId),
+    enabled: lectureId !== '',
     queryFn: async () => {
       const { data, error } = await supabase
         .from('attempts')

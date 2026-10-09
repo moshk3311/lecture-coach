@@ -52,6 +52,7 @@ function createDb(seed = {}) {
     sentences: seed.sentences ?? [],
     storage: seed.storage ?? {}, // bucket/path -> { contentType, body }
     attempts: seed.attempts ?? [],
+    coachTips: seed.coachTips ?? [],
     wordResults: seed.wordResults ?? [],
     settings: {
       user_id: USER_ID, voice: 'en-US-AndrewNeural', slow_rate: '-25%', send_audio_to_llm: true, privacy_ack: false,
@@ -233,8 +234,11 @@ async function setupMock(page, db, { signedIn = true } = {}) {
       return json(200, payload.id)
     }
 
+    if (p === '/rest/v1/coach_tips' && method === 'GET') return json(200, db.coachTips.filter((t) => t.active))
+
     if (p === '/rest/v1/attempts' && method === 'PATCH') {
-      const ids = (url.searchParams.get('id') || '').replace(/^in\.\(|\)$/g, '').split(',')
+      const idParam = url.searchParams.get('id') || ''
+      const ids = idParam.startsWith('eq.') ? [idParam.slice(3)] : idParam.replace(/^in\.\(|\)$/g, '').split(',')
       const patch = JSON.parse(body)
       const rows = db.attempts.filter((a) => ids.includes(a.id))
       rows.forEach((a) => Object.assign(a, patch))

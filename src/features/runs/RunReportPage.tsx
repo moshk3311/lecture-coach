@@ -13,6 +13,7 @@ import { AiFeedback } from './AiFeedback'
 import { useRecordingUrl, useRun, type RunDetail, type RunMetrics } from './api'
 import { useAssessRun } from './assess'
 import { KEEP_RECORDINGS } from './retention'
+import { TipsSection } from './TipsSection'
 
 const dateTime = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
@@ -89,6 +90,8 @@ function Report({ run, lectureId }: { run: RunDetail; lectureId: string }) {
       <SlideTimes slides={metrics.slides} perSlideWpm={speech?.perSlide} />
 
       <AiFeedback run={run} />
+
+      <TipsSection run={run} />
     </>
   )
 }

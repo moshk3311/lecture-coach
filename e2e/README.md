@@ -23,7 +23,8 @@ Start the app first (`npm run dev` in the repo root, port 5173), then from `e2e/
 | `npm run retention` | Keeps the newest 10 recordings, drops those of deleted lectures, cleans up after a discarded failed save. |
 | `npm run import -- <deck.pptx> [deck.pdf]` | Imports a real deck (test decks: `private/decks/`, git ignores it) → slides, script, slide images, lecture page and presenter. |
 | `npm run ai` | The mocked `ai` function in the app. Run report: the one-time privacy notice, a report with Corrections, ▶ You cut from the recording with a byte range, ▶ American from Gemini TTS (cached once per phrase), a failed request and its retry, and the audio switch in Settings. Presenter: memorization level L3 with Gemini's keywords, saved with the slide. |
-| `npm run all` | `screens`, `take`, `retention` and `ai`. |
+| `npm run tips` | Coach tips in the run report, on a made-up catalog: the rule-based tips with their evidence, saved with the take, rotated on the next take, a fast take, a phone layout, and no section without a catalog. |
+| `npm run all` | `screens`, `take`, `retention`, `ai` and `tips`. |
 
 Screenshots go to `e2e/out/` (git ignores it). Each script prints `ok`/`FAIL` lines and exits with 1 on a failure. `APP=<url>` points the scripts at another server (default `http://127.0.0.1:5173/#`).
 
