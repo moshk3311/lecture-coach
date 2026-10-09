@@ -22,7 +22,9 @@ import {
 } from './api'
 import { DeckPicker, type PickedDeck } from './DeckPicker'
 import { PdfPicker } from './PdfPicker'
+import { hasScript, useDraftAll } from './draft'
 import { PlannedTime } from './PlannedTime'
+import { SlideDraft } from './SlideDraft'
 import { RunHistory } from '../runs/RunHistory'
 import { SlideImagesError, type RenderProgress, type RenderResult } from './slideImages'
 import { LectureForm } from './LectureForm'
@@ -196,6 +198,7 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
     [deck.slides, deck.target_minutes],
   )
   const total = windows.at(-1)?.end ?? 0
+  const all = useDraftAll(deck)
 
   return (
     <section className="rise-in mt-8" style={stagger(5)}>
@@ -209,34 +212,79 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
           {deck.target_minutes ? ` · יעד ${deck.target_minutes} דק׳` : ' · לפי 140 מילים לדקה'}
         </p>
       </div>
+      <DraftAll deck={deck} all={all} />
       <ol className="grid grid-cols-1 gap-3">
         {deck.slides.map((slide, index) => (
-          <li key={slide.id} className={`${cardStyles} flex gap-3 p-3 sm:gap-4 sm:p-4`}>
-            <span className="w-6 shrink-0 pt-0.5 text-center font-mono text-sm text-ink-faint">{slide.position}</span>
-            <div className="min-w-0 flex-1">
-              <En as="h3" className="block truncate font-medium">
-                {slide.title || 'Untitled slide'}
-              </En>
-              <En as="p" className="mt-1 line-clamp-2 text-sm leading-relaxed text-ink-soft">
-                {joinScript(slide.sentences) || '—'}
-              </En>
-              <div className="mt-1.5 -ms-1.5">
-                <PlannedTime
-                  window={windows[index]}
-                  manualSeconds={slide.planned_seconds}
-                  onSave={(seconds) => updateSlide.mutate({ id: slide.id, patch: { planned_seconds: seconds } })}
-                />
+          <li key={slide.id} className={cardStyles}>
+            <div className="flex gap-3 p-3 sm:gap-4 sm:p-4">
+              <span className="w-6 shrink-0 pt-0.5 text-center font-mono text-sm text-ink-faint">{slide.position}</span>
+              <div className="min-w-0 flex-1">
+                <En as="h3" className="block truncate font-medium">
+                  {slide.title || 'Untitled slide'}
+                </En>
+                <En as="p" className="mt-1 line-clamp-2 text-sm leading-relaxed text-ink-soft">
+                  {joinScript(slide.sentences) || '—'}
+                </En>
+                {all.drafted.has(slide.id) ? <p className="mt-1 text-xs text-accent">נוסח ב-AI: עבור על הטיוטה ותקן</p> : null}
+                <div className="mt-1.5 -ms-1.5">
+                  <PlannedTime
+                    window={windows[index]}
+                    manualSeconds={slide.planned_seconds}
+                    onSave={(seconds) => updateSlide.mutate({ id: slide.id, patch: { planned_seconds: seconds } })}
+                  />
+                </div>
               </div>
+              <SlideFrame
+                imageUrl={slide.image_path ? urls?.get(slide.image_path) : null}
+                title={slide.title}
+                className="w-24 shrink-0 self-start sm:w-32"
+              />
             </div>
-            <SlideFrame
-              imageUrl={slide.image_path ? urls?.get(slide.image_path) : null}
-              title={slide.title}
-              className="w-24 shrink-0 self-start sm:w-32"
-            />
+            <div className="px-3 pb-3 sm:px-4 sm:pb-4">
+              <SlideDraft lectureId={deck.id} slide={slide} />
+            </div>
           </li>
         ))}
       </ol>
     </section>
+  )
+}
+
+/** One button that drafts every slide without a script, with its progress and outcome. */
+function DraftAll({ deck, all }: { deck: LectureDeck; all: ReturnType<typeof useDraftAll> }) {
+  const empty = deck.slides.filter((slide) => !hasScript(slide)).length
+  const { state } = all
+  if (state.status === 'running') {
+    return (
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-ink-soft" role="status">
+        <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+        מנסח את שקף {state.position} ({state.done + 1} מתוך {state.total})…
+        <button type="button" onClick={all.cancel} className={`${buttonStyles.ghost} h-8 text-sm`}>
+          עצור
+        </button>
+      </div>
+    )
+  }
+  if (state.status === 'done') {
+    return (
+      <div className="mb-4 space-y-2 text-sm">
+        {state.drafted > 0 ? <p className="text-ink-soft">נוספו טיוטות ל-{state.drafted} שקפים. עבור עליהן ותקן.</p> : null}
+        {state.failed ? <Alert>שקף {state.failed.position}: {state.failed.message}</Alert> : null}
+        <button type="button" onClick={all.dismiss} className={`${buttonStyles.ghost} h-8 text-sm`}>
+          סגור
+        </button>
+      </div>
+    )
+  }
+  if (empty === 0) return null
+  return (
+    <div className="mb-4">
+      <button type="button" onClick={() => void all.start()} className={`${buttonStyles.secondary} h-10 text-sm`}>
+        <Pencil size={16} aria-hidden="true" />
+        טיוטה ל-{empty} שקפים בלי תסריט
+      </button>
+      <p className="mt-1.5 text-xs text-ink-faint">Gemini כותב לכל שקף תסריט, לפי הסדר. אפשר לעצור באמצע, ומה שנכתב נשמר.</p>
+    </div>
   )
 }
 

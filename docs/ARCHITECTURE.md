@@ -93,7 +93,7 @@ Pin exact versions in Sprint 0 (check current stable releases).
   - Hidden slides (`show="0"`) are skipped. Decks built without placeholders get the short text in the largest font (topmost on a tie) as title. Footers repeated on most slides and bare slide numbers are dropped from the slide text.
   - The speaker notes become each slide's first script, split into sentences (`import_slides` RPC, one transaction).
 - **Intent notes per slide:** what the user wants to say, in Hebrew or English.
-- **AI script drafting:** per slide, from slide text + notes + intent + time budget → spoken American English script.
+- **AI script drafting ("✎ הצע מלל", Sprint 3):** per slide, from the slide's picture (when the deck has images) + text + speaker notes + the speaker's intent + the slide's time budget + the scripts of the slides before it and the title of the next → spoken American English script, a bridge sentence into the next slide, and Hebrew notes on the choices. It is a proposal: the lecture page shows it next to the current script and the owner accepts it or not. "Draft every slide without a script" fills the empty slides one after another (they are saved at once, since nothing is replaced, and marked for review). The picture goes to Gemini as an inline image; Gemini reads a PPTX as plain text only, so images need the PDF export.
 - **Discussion chat:** per lecture, optionally scoped to a slide. User may write in Hebrew. AI can return a `proposed_edit` the user accepts or rejects.
 - **"Americanize" action** on any text: revised text + list of changes with Hebrew reasons (shown as a diff).
 - **Segmentation:** each slide's script split into sentences = practice units. Editable (merge/split/reorder).
@@ -470,6 +470,7 @@ Calls `https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueT
 | `chat` | lecture + slide context, history, message | `{ reply, proposed_edit? }` |
 | `feedback` | see §5.4 | feedback JSON (§5.4) |
 | `keywords` | `{ slide_script }` | `{ keywords[] }`: up to 6, each found in the script |
+| `draft_script` | `{ slide_id, intent? }`: the function reads the slide, its lecture, the other slides' scripts and the slide's image as the user; `intent` overrides `slides.intent_notes` | `{ script_en, transition_line, notes_he, words, estimated_seconds, budget_seconds, saw_image, model, prompt_version }`. Nothing is saved: English only, one paragraph per line, no bridge on the last slide. |
 | `speak` | `{ text, voice? }`: text up to 300 characters, voice one of a short list of Gemini voices | `{ audio_base64, mime_type }`: a WAV the app caches in Storage |
 | `run_report` | `{ attempt_id }`. The function reads the take as the user: script, slide timeline, metrics, scores, weak words, `send_audio_to_llm`; it uploads the recording to the Files API. Selected tips + catalog index join in Sprint 2b (§5.8). | The report, also saved in `attempts.ai_feedback`: `{ version, model, prompt_version, created_at, heard_audio, summary_he, strengths_he[], improvements[], next_session_plan_he, corrections[], tips[] }` (`tips[]` from Sprint 2b) |
 

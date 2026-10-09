@@ -77,4 +77,21 @@ function keywordsOf(script) {
   return [...new Set((script || '').match(/[A-Za-z][A-Za-z'-]{4,}/g) ?? [])].slice(0, 4)
 }
 
-module.exports = { aiReport, keywordsOf }
+/** The mocked draft_script action: a short script that names the slide, and a bridge unless it is the last slide. */
+function draftOf(slide, intent, isLast) {
+  const script = `This is slide ${slide.position}.\nIt shows ${slide.title || 'the plan'}.`
+  const words = script.match(/[A-Za-z0-9']+/g).length
+  return {
+    script_en: script,
+    transition_line: isLast ? null : `Now, on to slide ${slide.position + 1}.`,
+    notes_he: intent ? 'התחשבתי במה שכתבת.' : 'כתבתי לפי הטקסט שבשקף.',
+    words,
+    estimated_seconds: Math.round((words * 60) / 140),
+    budget_seconds: 50,
+    saw_image: Boolean(slide.image_path),
+    model: 'gemini-mock',
+    prompt_version: '2026-10-07',
+  }
+}
+
+module.exports = { aiReport, draftOf, keywordsOf }

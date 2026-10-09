@@ -48,5 +48,8 @@ npx supabase secrets set KEY=value       # set server secrets
   - Rules (`src/lib/tips.ts`: `detectIssues`, `selectTips`, tested) pick up to 3 tips from timing, Azure speech metrics and history; saved in `attempts.metrics.tips`; shown at the end of the run report with evidence and sources. `run_report` anchors them to a moment and adds up to 2 tips from listening. Without Azure, Gemini reports the speech triggers from listening (ARCHITECTURE §5.8).
   - Not done: calibrating the thresholds on 3+ real takes; checking the tips and anchors live on a real take (needs the Pages build).
   - e2e uses a made-up catalog (`e2e/lib/tips.js`), never the real tips.
-- [ ] Sprint 3 — Script Studio + reference audio
+- [ ] Sprint 3 — Script Studio + reference audio · started 2026-10-09:
+  - Done: `draft_script` (deployed) and the "✎ הצע מלל" pencil per slide on the lecture page, plus "draft every slide without a script"; e2e `draft.js`. Not yet checked live on a real slide (needs the Pages build).
+  - Next, in order: `americanize` + diff view, sentence segmentation editor + time estimates, reference audio per sentence (Gemini TTS: no word highlighting, "slow" by prompt), chat with proposed edits.
+  - Open question: importing without two files (PPTX + PDF); options in the conversation of 2026-10-09.
 - [ ] Sprint 4 — Sentence practice, AI feedback, progress
