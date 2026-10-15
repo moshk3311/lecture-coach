@@ -69,7 +69,7 @@ export async function draftScript(user: AuthedUser, payload: unknown, gemini: Ge
     }),
   })
 
-  const answer = await generateJson(gemini, { system: DRAFT_SYSTEM, parts, schema: DRAFT_SCHEMA, temperature: 0.6 })
+  const answer = await generateJson(gemini, { system: DRAFT_SYSTEM, parts, schema: DRAFT_SCHEMA, temperature: 0.6, thinking: 'low' })
   return normalizeDraft(answer, {
     budgetSeconds,
     sawImage: image !== null,

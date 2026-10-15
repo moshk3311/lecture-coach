@@ -41,7 +41,7 @@ type GenerateResponse = {
 /** One generateContent call whose answer must be JSON that follows `schema`; returns it parsed. */
 export async function generateJson(
   config: GeminiConfig,
-  request: { system: string; parts: Part[]; schema: unknown; temperature?: number },
+  request: { system: string; parts: Part[]; schema: unknown; temperature?: number; thinking?: 'low' },
 ): Promise<unknown> {
   const res = await withRetries('generateContent', () =>
     fetch(`${API}/v1beta/models/${config.model}:generateContent`, {
@@ -54,6 +54,8 @@ export async function generateJson(
           responseMimeType: 'application/json',
           responseSchema: request.schema,
           temperature: request.temperature ?? 0.4,
+          // Gemini 3 models think before answering; 'low' keeps drafts fast (the default is high).
+          ...(request.thinking ? { thinkingConfig: { thinkingLevel: request.thinking } } : {}),
         },
       }),
     }),
