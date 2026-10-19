@@ -18,12 +18,12 @@ export function geminiConfig(): GeminiConfig | null {
 }
 
 /**
- * The faster model for short edits (GEMINI_LITE_MODEL, e.g. gemini-3.5-flash-lite) with minimal
- * thinking; without it, the main model with low thinking (the lowest level 3.8 Flash accepts).
+ * The faster model for short edits (GEMINI_LITE_MODEL, e.g. gemini-3.5-flash-lite); without it, the
+ * main model. Low thinking either way: with minimal, Flash-Lite sent every script back unchanged.
  */
 export function liteConfig(config: GeminiConfig): { config: GeminiConfig; thinking: Thinking } {
   const model = Deno.env.get('GEMINI_LITE_MODEL')
-  return model ? { config: { ...config, model }, thinking: 'minimal' } : { config, thinking: 'low' }
+  return { config: model ? { ...config, model } : config, thinking: 'low' }
 }
 
 export type Thinking = 'minimal' | 'low'
