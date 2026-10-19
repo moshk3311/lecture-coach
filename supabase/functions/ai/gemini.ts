@@ -17,6 +17,17 @@ export function geminiConfig(): GeminiConfig | null {
   return key && model ? { key, model } : null
 }
 
+/**
+ * The faster model for short edits (GEMINI_LITE_MODEL, e.g. gemini-3.5-flash-lite) with minimal
+ * thinking; without it, the main model with low thinking (the lowest level 3.8 Flash accepts).
+ */
+export function liteConfig(config: GeminiConfig): { config: GeminiConfig; thinking: Thinking } {
+  const model = Deno.env.get('GEMINI_LITE_MODEL')
+  return model ? { config: { ...config, model }, thinking: 'minimal' } : { config, thinking: 'low' }
+}
+
+export type Thinking = 'minimal' | 'low'
+
 /** Gemini refused or failed after the retries; `status` is its HTTP status (0: no answer at all). */
 export class GeminiError extends Error {
   override name = 'GeminiError'
@@ -41,7 +52,7 @@ type GenerateResponse = {
 /** One generateContent call whose answer must be JSON that follows `schema`; returns it parsed. */
 export async function generateJson(
   config: GeminiConfig,
-  request: { system: string; parts: Part[]; schema: unknown; temperature?: number; thinking?: 'low' },
+  request: { system: string; parts: Part[]; schema: unknown; temperature?: number; thinking?: Thinking },
 ): Promise<unknown> {
   const res = await withRetries('generateContent', () =>
     fetch(`${API}/v1beta/models/${config.model}:generateContent`, {
@@ -54,7 +65,7 @@ export async function generateJson(
           responseMimeType: 'application/json',
           responseSchema: request.schema,
           temperature: request.temperature ?? 0.4,
-          // Gemini 3 models think before answering; 'low' keeps drafts fast (the default is high).
+          // Gemini 3 models think before answering; a low level keeps short tasks fast (the default is higher).
           ...(request.thinking ? { thinkingConfig: { thinkingLevel: request.thinking } } : {}),
         },
       }),

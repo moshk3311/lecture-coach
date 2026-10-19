@@ -3,7 +3,7 @@
 // differences and the owner accepts them or not.
 import type { AuthedUser } from '../_shared/auth.ts'
 import { AMERICANIZE_SCHEMA, type AmericanizeResult, normalizeAmericanize } from './contract.ts'
-import { generateJson, type GeminiConfig } from './gemini.ts'
+import { generateJson, type GeminiConfig, liteConfig } from './gemini.ts'
 import { PROMPT_VERSION } from './prompts/coach.ts'
 import { AMERICANIZE_SYSTEM, americanizePrompt } from './prompts/americanize.ts'
 import { RequestError, stringField } from './request.ts'
@@ -18,12 +18,13 @@ export async function americanize(_user: AuthedUser, payload: unknown, gemini: G
   if (script.length > MAX_TEXT_CHARS) throw new RequestError('התסריט ארוך מדי לתיקון בבת אחת.')
   const bridge = stringField(payload, 'transition_line', MAX_BRIDGE_CHARS) || null
 
-  const answer = await generateJson(gemini, {
+  const { config, thinking } = liteConfig(gemini)
+  const answer = await generateJson(config, {
     system: AMERICANIZE_SYSTEM,
     parts: [{ text: americanizePrompt(script, bridge) }],
     schema: AMERICANIZE_SCHEMA,
     temperature: 0.2,
-    thinking: 'low',
+    thinking,
   })
-  return normalizeAmericanize(answer, { text: script, transitionLine: bridge, model: gemini.model, promptVersion: PROMPT_VERSION })
+  return normalizeAmericanize(answer, { text: script, transitionLine: bridge, model: config.model, promptVersion: PROMPT_VERSION })
 }
