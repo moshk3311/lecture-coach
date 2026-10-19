@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { type DraftContext, InvalidAnswer, normalizeDraft, normalizeKeywords, normalizeRunReport, type RunReportContext } from './contract.ts'
+import {
+  type AmericanizeContext,
+  type DraftContext,
+  InvalidAnswer,
+  MAX_CHANGES,
+  normalizeAmericanize,
+  normalizeDraft,   normalizeKeywords,
+  normalizeRunReport,
+  type RunReportContext,
+} from './contract.ts'
 
 const context: RunReportContext = {
   heardAudio: true,
@@ -255,5 +264,74 @@ describe('normalizeDraft', () => {
     expect(() => normalizeDraft(draft({ script_en: '  \n ' }), draftContext)).toThrow(InvalidAnswer)
     expect(() => normalizeDraft(draft({ script_en: 'This is the plant. זה המפעל.' }), draftContext)).toThrow(InvalidAnswer)
     expect(() => normalizeDraft(null, draftContext)).toThrow(InvalidAnswer)
+  })
+})
+
+describe('normalizeAmericanize', () => {
+  const context: AmericanizeContext = {
+    text: "It's worth to check the numbers.\nWe will open the computer.",
+    transitionLine: 'Now we pass to the safety.',
+    model: 'gemini-test',
+    promptVersion: 'v-test',
+  }
+  const answer = (fields: Record<string, unknown> = {}) => ({
+    text_en: "  It's worth checking the numbers.\n\nWe'll turn on the computer. ",
+    transition_line_en: " Now let's move on to safety. ",
+    changes: [
+      { from: 'worth to check', to: 'worth checking', reason_he: 'אחרי worth בא ing.' },
+      { from: 'open the computer', to: 'turn on the computer', reason_he: 'תרגום מילולי מעברית.' },
+      { from: 'pass to the safety', to: 'move on to safety', reason_he: 'ניסוח טבעי יותר.' },
+    ],
+    ...fields,
+  })
+
+  it('keeps one paragraph per line and the changes that quote what was sent', () => {
+    expect(normalizeAmericanize(answer(), context)).toEqual({
+      text_en: "It's worth checking the numbers.\nWe'll turn on the computer.",
+      transition_line: "Now let's move on to safety.",
+      changes: answer().changes,
+      model: 'gemini-test',
+      prompt_version: 'v-test',
+    })
+  })
+
+  it('drops changes that are not in the text, change nothing, repeat, or have no reason', () => {
+    const changes = [
+      { from: 'made-up words', to: 'other words', reason_he: 'סיבה.' },
+      { from: 'the numbers', to: 'The Numbers', reason_he: 'אותו דבר.' },
+      { from: 'worth to check', to: 'worth checking', reason_he: 'סיבה.' },
+      { from: 'Worth  to check', to: 'worth checking', reason_he: 'שוב.' },
+      { from: 'open the computer', to: 'turn on the computer', reason_he: ' ' },
+    ]
+    expect(normalizeAmericanize(answer({ changes }), context).changes).toEqual([changes[2]])
+  })
+
+  it('accepts a cut, where "to" is empty', () => {
+    const changes = [{ from: 'the numbers', to: '', reason_he: 'מיותר.' }]
+    expect(normalizeAmericanize(answer({ changes }), context).changes).toEqual(changes)
+  })
+
+  it('reports no changes when the text came back the same', () => {
+    const same = answer({ text_en: context.text, transition_line_en: context.transitionLine })
+    expect(normalizeAmericanize(same, context).changes).toEqual([])
+  })
+
+  it('keeps at most MAX_CHANGES changes', () => {
+    const words = Array.from({ length: MAX_CHANGES + 3 }, (_, i) => `word${i}`)
+    const changes = words.map((w) => ({ from: w, to: `${w}s`, reason_he: 'סיבה.' }))
+    const many = normalizeAmericanize(answer({ changes }), { ...context, text: words.join(' ') })
+    expect(many.changes).toHaveLength(MAX_CHANGES)
+  })
+
+  it('gives no bridge when none was sent and keeps the sent one when the answer has none in English', () => {
+    expect(normalizeAmericanize(answer(), { ...context, transitionLine: null }).transition_line).toBeNull()
+    expect(normalizeAmericanize(answer({ transition_line_en: null }), context).transition_line).toBe(context.transitionLine)
+    expect(normalizeAmericanize(answer({ transition_line_en: 'עוברים לבטיחות' }), context).transition_line).toBe(context.transitionLine)
+  })
+
+  it('refuses an answer with no text or with Hebrew in it', () => {
+    expect(() => normalizeAmericanize(answer({ text_en: ' ' }), context)).toThrow(InvalidAnswer)
+    expect(() => normalizeAmericanize(answer({ text_en: 'We check. אנחנו בודקים.' }), context)).toThrow(InvalidAnswer)
+    expect(() => normalizeAmericanize('nope', context)).toThrow(InvalidAnswer)
   })
 })

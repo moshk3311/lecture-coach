@@ -117,6 +117,21 @@ export type ScriptDraft = {
   prompt_version: string
 }
 
+/** One change "Americanize" made, with its reason in Hebrew. `to` is '' when words were cut. */
+export type ScriptChange = { from: string; to: string; reason_he: string }
+
+/** A script revised to natural spoken American English (§5.1 "Americanize"): a proposal, nothing is saved. */
+export type AmericanizeResult = {
+  /** One paragraph per line, as the script editor stores it. */
+  text_en: string
+  /** The revised bridge sentence; null when the slide has none. */
+  transition_line: string | null
+  /** Each change once, in script order as far as the model keeps it; empty when the text already sounds right. */
+  changes: ScriptChange[]
+  model: string
+  prompt_version: string
+}
+
 export const MAX_STRENGTHS = 3
 export const MAX_IMPROVEMENTS = 3
 export const MAX_CORRECTIONS = 8
@@ -196,6 +211,28 @@ export const DRAFT_SCHEMA = {
   properties: { script_en: STRING, transition_line_en: { type: 'STRING', nullable: true }, notes_he: STRING },
   required: ['script_en', 'transition_line_en', 'notes_he'],
   propertyOrdering: ['script_en', 'transition_line_en', 'notes_he'],
+}
+
+export const MAX_CHANGES = 12
+
+export const AMERICANIZE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    text_en: STRING,
+    transition_line_en: { type: 'STRING', nullable: true },
+    changes: {
+      type: 'ARRAY',
+      maxItems: MAX_CHANGES,
+      items: {
+        type: 'OBJECT',
+        properties: { from: STRING, to: STRING, reason_he: STRING },
+        required: ['from', 'to', 'reason_he'],
+        propertyOrdering: ['from', 'to', 'reason_he'],
+      },
+    },
+  },
+  required: ['text_en', 'transition_line_en', 'changes'],
+  propertyOrdering: ['text_en', 'transition_line_en', 'changes'],
 }
 
 export const KEYWORDS_SCHEMA = {
@@ -363,11 +400,7 @@ const HEBREW = /[\u0590-\u05FF]/
  */
 export function normalizeDraft(raw: unknown, context: DraftContext): ScriptDraft {
   if (!isObject(raw)) throw new InvalidAnswer('draft_script: the answer is not an object')
-  const script = (typeof raw.script_en === 'string' ? raw.script_en : '')
-    .split(/\r?\n/)
-    .map((line) => line.replace(/\s+/g, ' ').trim())
-    .filter(Boolean)
-    .join('\n')
+  const script = scriptLines(raw.script_en)
   const words = script.match(WORD)?.length ?? 0
   if (!words) throw new InvalidAnswer('draft_script: the answer has no script')
   if (HEBREW.test(script)) throw new InvalidAnswer('draft_script: the script is not in English')
@@ -381,6 +414,68 @@ export function normalizeDraft(raw: unknown, context: DraftContext): ScriptDraft
     estimated_seconds: Math.round((words * 60) / DRAFT_WPM),
     budget_seconds: context.budgetSeconds,
     saw_image: context.sawImage,
+    model: context.model,
+    prompt_version: context.promptVersion,
+  }
+}
+
+/** A script as the editor stores it: one paragraph per line, spaces collapsed, no empty lines. */
+function scriptLines(value: unknown): string {
+  return (typeof value === 'string' ? value : '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
+export type AmericanizeContext = {
+  /** The script that was sent, as the editor stores it. */
+  text: string
+  transitionLine: string | null
+  model: string
+  promptVersion: string
+}
+
+/** Lower case with single spaces and straight apostrophes, for finding a quoted phrase in a text. */
+function folded(value: string): string {
+  return value.toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Checks an "Americanize" answer: an English script, a bridge sentence only when one was sent (the
+ * sent one stays when the answer's is missing or not English), and changes whose `from` is really in
+ * what was sent, each once and with a reason. No changes when the text came back the same.
+ */
+export function normalizeAmericanize(raw: unknown, context: AmericanizeContext): AmericanizeResult {
+  if (!isObject(raw)) throw new InvalidAnswer('americanize: the answer is not an object')
+  const revised = scriptLines(raw.text_en)
+  if (!(revised.match(WORD)?.length ?? 0)) throw new InvalidAnswer('americanize: the answer has no text')
+  if (HEBREW.test(revised)) throw new InvalidAnswer('americanize: the text is not in English')
+
+  const sentBridge = context.transitionLine?.trim() || null
+  const answerBridge = text(raw.transition_line_en).replace(/\s+/g, ' ')
+  const bridge = sentBridge === null ? null : answerBridge && !HEBREW.test(answerBridge) ? answerBridge : sentBridge
+
+  const unchanged = revised === scriptLines(context.text) && bridge === sentBridge
+  const source = folded(`${context.text}\n${sentBridge ?? ''}`)
+  const seen = new Set<string>()
+  const changes: ScriptChange[] = []
+  for (const item of unchanged ? [] : list(raw.changes)) {
+    if (!isObject(item)) continue
+    const from = text(item.from).replace(/\s+/g, ' ')
+    const to = text(item.to).replace(/\s+/g, ' ')
+    const reason = text(item.reason_he)
+    const key = `${folded(from)}→${folded(to)}`
+    if (!from || !reason || folded(from) === folded(to) || !source.includes(folded(from)) || seen.has(key)) continue
+    if (HEBREW.test(from) || HEBREW.test(to)) continue
+    seen.add(key)
+    changes.push({ from, to, reason_he: reason })
+    if (changes.length === MAX_CHANGES) break
+  }
+  return {
+    text_en: revised,
+    transition_line: bridge,
+    changes,
     model: context.model,
     prompt_version: context.promptVersion,
   }

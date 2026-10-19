@@ -466,7 +466,7 @@ Calls `https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueT
 | Action | Payload | Returns |
 |--------|---------|---------|
 | `draft_script` | lecture meta, slide `{source_text, source_notes, intent_notes}`, `target_seconds` | `{ script_en, sentences[], notes_he }` |
-| `americanize` | `{ text }` | `{ text_en, changes: [{from, to, reason_he}] }` |
+| `americanize` | `{ text, transition_line? }`: a slide's saved script (up to 6000 characters) and its bridge sentence | `{ text_en, transition_line, changes: [{from, to, reason_he}], model, prompt_version }`. Nothing is saved: English only, one paragraph per line, every `from` is in what was sent, at most 12 changes, none when the text came back the same. Low thinking, like `draft_script`. |
 | `chat` | lecture + slide context, history, message | `{ reply, proposed_edit? }` |
 | `feedback` | see §5.4 | feedback JSON (§5.4) |
 | `keywords` | `{ slide_script }` | `{ keywords[] }`: up to 6, each found in the script |
