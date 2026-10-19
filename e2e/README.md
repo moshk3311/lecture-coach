@@ -25,7 +25,8 @@ Start the app first (`npm run dev` in the repo root, port 5173), then from `e2e/
 | `npm run ai` | The mocked `ai` function in the app. Run report: the one-time privacy notice, a report with Corrections, ▶ You cut from the recording with a byte range, ▶ American from Gemini TTS (cached once per phrase), a failed request and its retry, and the audio switch in Settings. Presenter: memorization level L3 with Gemini's keywords, saved with the slide. |
 | `npm run tips` | Coach tips in the run report, on a made-up catalog: the rule-based tips with their evidence, saved with the take, rotated on the next take, a fast take, a phone layout, and no section without a catalog. |
 | `npm run draft` | AI script drafting on the lecture page: the pencil of a slide (intent in, proposal out, accepted or refused, bridge sentence saved), a draft for every slide without a script, a failure that names the slide, and a phone layout. |
-| `npm run all` | `screens`, `take`, `retention`, `ai`, `tips` and `draft`. |
+| `npm run americanize` | "Americanize" on the lecture page: no button without a script, a script that needs nothing, a word diff with Hebrew reasons (struck and marked words), refused and accepted (script and bridge saved), a failure with a retry, and a phone layout. |
+| `npm run all` | `screens`, `take`, `retention`, `ai`, `tips`, `draft` and `americanize`. |
 
 Screenshots go to `e2e/out/` (git ignores it). Each script prints `ok`/`FAIL` lines and exits with 1 on a failure. `APP=<url>` points the scripts at another server (default `http://127.0.0.1:5173/#`).
 

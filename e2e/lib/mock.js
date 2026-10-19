@@ -2,7 +2,7 @@
 // azure-token and ai functions, all answered inside the browser. It never touches the real project.
 // REF must match VITE_SUPABASE_URL in .env.local: the app builds its session key from it.
 const crypto = require('crypto')
-const { aiReport, draftOf, keywordsOf } = require('./ai')
+const { aiReport, americanizeOf, draftOf, keywordsOf } = require('./ai')
 const REF = 'gzppgmoegcsdtovcdkmy'
 const BASE = `https://${REF}.supabase.co`
 const USER_ID = '11111111-1111-4111-8111-111111111111'
@@ -214,6 +214,7 @@ async function setupMock(page, db, { signedIn = true } = {}) {
         const last = Math.max(...db.slides.filter((s) => s.lecture_id === slide.lecture_id).map((s) => s.position)) === slide.position
         return json(200, draftOf(slide, payload.intent, last))
       }
+      if (action === 'americanize') return json(200, americanizeOf(payload.text, payload.transition_line ?? null))
       if (action === 'speak') return json(200, { audio_base64: require('./seeds').wavBody(1).toString('base64'), mime_type: 'audio/wav' })
       return json(400, { message_he: 'פעולה לא מוכרת.' })
     }

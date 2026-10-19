@@ -11,9 +11,8 @@ import type { SlideWithSentences } from './api'
 import { hasScript, saveDraft, saveIntent } from './draft'
 
 /** The pencil of a slide: the speaker's intent in, a proposed script out, accepted or not (§5.1). */
-export function SlideDraft({ lectureId, slide }: { lectureId: string; slide: SlideWithSentences }) {
+export function DraftPanel({ lectureId, slide, onClose }: { lectureId: string; slide: SlideWithSentences; onClose: () => void }) {
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
   const [intent, setIntent] = useState(slide.intent_notes ?? '')
   const [draft, setDraft] = useState<ScriptDraft | null>(null)
 
@@ -26,20 +25,8 @@ export function SlideDraft({ lectureId, slide }: { lectureId: string; slide: Sli
   })
   const accept = useMutation({
     mutationFn: (proposal: ScriptDraft) => saveDraft(queryClient, lectureId, slide, proposal, true),
-    onSuccess: () => {
-      setDraft(null)
-      setOpen(false)
-    },
+    onSuccess: onClose,
   })
-
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} className={`${buttonStyles.ghost} -ms-3 h-9 text-sm`}>
-        <Pencil size={15} aria-hidden="true" />
-        הצע מלל
-      </button>
-    )
-  }
 
   const busy = propose.isPending || accept.isPending
   const failure = propose.error ?? accept.error
@@ -64,10 +51,7 @@ export function SlideDraft({ lectureId, slide }: { lectureId: string; slide: Sli
         <button
           type="button"
           disabled={busy}
-          onClick={() => {
-            setOpen(false)
-            setDraft(null)
-          }}
+          onClick={onClose}
           className={`${buttonStyles.ghost} h-10 text-sm`}
         >
           סגור

@@ -94,4 +94,22 @@ function draftOf(slide, intent, isLast) {
   }
 }
 
-module.exports = { aiReport, draftOf, keywordsOf }
+// "Americanize" as the mock does it: a fixed list of rewrites, each with a Hebrew reason.
+const AMERICANIZE_RULES = [
+  ['We will', "We'll", 'בדיבור אומרים We\'ll ולא We will.'],
+  ['on to the', 'on to', 'בלי the לפני שם של נושא.'],
+]
+
+function americanizeOf(text, bridge) {
+  const changes = []
+  const fix = (value) =>
+    AMERICANIZE_RULES.reduce((out, [from, to, reason]) => {
+      if (!out.includes(from)) return out
+      changes.push({ from, to, reason_he: reason })
+      return out.split(from).join(to)
+    }, value)
+  const textEn = fix(text)
+  return { text_en: textEn, transition_line: bridge ? fix(bridge) : null, changes, model: 'gemini-mock', prompt_version: '2026-10-07' }
+}
+
+module.exports = { aiReport, americanizeOf, draftOf, keywordsOf }

@@ -24,7 +24,7 @@ import { DeckPicker, type PickedDeck } from './DeckPicker'
 import { PdfPicker } from './PdfPicker'
 import { hasScript, useDraftAll } from './draft'
 import { PlannedTime } from './PlannedTime'
-import { SlideDraft } from './SlideDraft'
+import { SlideTools } from './SlideTools'
 import { RunHistory } from '../runs/RunHistory'
 import { SlideImagesError, type RenderProgress, type RenderResult } from './slideImages'
 import { LectureForm } from './LectureForm'
@@ -241,7 +241,7 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
               />
             </div>
             <div className="px-3 pb-3 sm:px-4 sm:pb-4">
-              <SlideDraft lectureId={deck.id} slide={slide} />
+              <SlideTools lectureId={deck.id} slide={slide} />
             </div>
           </li>
         ))}

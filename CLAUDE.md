@@ -49,7 +49,8 @@ npx supabase secrets set KEY=value       # set server secrets
   - Not done: calibrating the thresholds on 3+ real takes; checking the tips and anchors live on a real take (needs the Pages build).
   - e2e uses a made-up catalog (`e2e/lib/tips.js`), never the real tips.
 - [ ] Sprint 3 — Script Studio + reference audio · started 2026-10-09:
-  - Done: `draft_script` (deployed) and the "✎ הצע מלל" pencil per slide on the lecture page, plus "draft every slide without a script"; e2e `draft.js`. Not yet checked live on a real slide (needs the Pages build).
-  - Next, in order: `americanize` + diff view, sentence segmentation editor + time estimates, reference audio per sentence (Gemini TTS: no word highlighting, "slow" by prompt), chat with proposed edits.
+  - Done: `draft_script` (deployed, low thinking since 2026-10-15) and the "✎ הצע מלל" pencil per slide on the lecture page, plus "draft every slide without a script"; e2e `draft.js`. Checked live by the owner (good base to rewrite; ~1 min before low thinking).
+  - Done: `americanize` (deployed 2026-10-19) and "תקן לאמריקאית" per slide with a script: word diff (`src/lib/wordDiff.ts`) and Hebrew reasons, accepted or refused; change notes are not stored (segmentation will change). e2e `americanize.js`. Not yet checked live.
+  - Next, in order: sentence segmentation editor + time estimates, reference audio per sentence (Gemini TTS: no word highlighting, "slow" by prompt), chat with proposed edits.
   - Open question: importing without two files (PPTX + PDF); options in the conversation of 2026-10-09.
 - [ ] Sprint 4 — Sentence practice, AI feedback, progress

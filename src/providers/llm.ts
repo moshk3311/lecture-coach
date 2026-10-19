@@ -1,15 +1,17 @@
 // LlmProvider: the only door to the language model (ARCHITECTURE §2). The `ai` Edge Function
 // implements it with Gemini and keeps the key on the server, so swapping Gemini for Claude happens
 // there. The answer types come from the function's contract, the single source of truth.
-import type { RunReportFeedback, ScriptDraft } from '../../supabase/functions/ai/contract.ts'
+import type { AmericanizeResult, RunReportFeedback, ScriptDraft } from '../../supabase/functions/ai/contract.ts'
 
 export type {
+  AmericanizeResult,
   Correction,
   CorrectionCategory,
   DeliveryTopic,
   Improvement,
   ReportTip,
   RunReportFeedback,
+  ScriptChange,
   ScriptDraft,
   Severity,
 } from '../../supabase/functions/ai/contract.ts'
@@ -24,6 +26,8 @@ export interface LlmProvider {
   keywords(request: { slideScript: string }): Promise<string[]>
   /** A proposed script and bridge sentence for one slide; nothing is saved. `intent` overrides the slide's saved intent notes. */
   draftScript(request: { slideId: string; intent?: string }): Promise<ScriptDraft>
+  /** The script and bridge sentence revised to spoken American English, each change with a Hebrew reason; nothing is saved. */
+  americanize(request: { text: string; transitionLine: string | null }): Promise<AmericanizeResult>
   /** Gemini's report on a saved take; the function also saves it in attempts.ai_feedback. */
   runReport(request: { attemptId: string }): Promise<RunReportFeedback>
 }

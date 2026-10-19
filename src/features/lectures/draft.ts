@@ -12,30 +12,34 @@ import { lectureKeys, patchDeckSlide, type LectureDeck, type Sentence, type Slid
 export const hasScript = (slide: SlideWithSentences) => joinScript(slide.sentences).trim() !== ''
 
 /**
- * Saves a draft as the slide's script (sentences keep their ids where the text is unchanged) and
- * its bridge sentence. A slide that already has a bridge sentence keeps it unless `replaceBridge`.
+ * Saves a script for the slide (sentences keep their ids where the text is unchanged) and its bridge
+ * sentence. A slide that already has a bridge sentence keeps it unless `replaceBridge`.
  */
-export async function saveDraft(
+export async function saveScript(
   queryClient: QueryClient,
   lectureId: string,
   slide: SlideWithSentences,
-  draft: ScriptDraft,
+  script: { text: string; transitionLine: string | null },
   replaceBridge: boolean,
 ): Promise<void> {
   const { data, error } = await supabase.rpc('save_slide_script', {
     p_slide_id: slide.id,
-    p_sentences: planScriptSave(slide.sentences, splitScript(draft.script_en)),
+    p_sentences: planScriptSave(slide.sentences, splitScript(script.text)),
   })
   if (error) throw error
   patchDeckSlide(queryClient, lectureId, slide.id, { sentences: data as Sentence[] })
 
-  const bridge = draft.transition_line
-  if (bridge && (replaceBridge || !slide.transition_line?.trim())) {
+  const bridge = script.transitionLine
+  if (bridge && bridge !== slide.transition_line && (replaceBridge || !slide.transition_line?.trim())) {
     const saved = await supabase.from('slides').update({ transition_line: bridge }).eq('id', slide.id)
     if (saved.error) throw saved.error
     patchDeckSlide(queryClient, lectureId, slide.id, { transition_line: bridge })
   }
 }
+
+/** Saves a draft as the slide's script and bridge sentence (see saveScript). */
+export const saveDraft = (queryClient: QueryClient, lectureId: string, slide: SlideWithSentences, draft: ScriptDraft, replaceBridge: boolean) =>
+  saveScript(queryClient, lectureId, slide, { text: draft.script_en, transitionLine: draft.transition_line }, replaceBridge)
 
 /** Saves the intent notes the speaker typed for a slide, when they changed. */
 export async function saveIntent(queryClient: QueryClient, lectureId: string, slide: SlideWithSentences, intent: string): Promise<void> {
