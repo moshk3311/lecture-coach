@@ -96,8 +96,8 @@ Pin exact versions in Sprint 0 (check current stable releases).
 - **AI script drafting ("✎ הצע מלל", Sprint 3):** per slide, from the slide's picture (when the deck has images) + text + speaker notes + the speaker's intent + the slide's time budget + the scripts of the slides before it and the title of the next → spoken American English script, a bridge sentence into the next slide, and Hebrew notes on the choices. It is a proposal: the lecture page shows it next to the current script and the owner accepts it or not. "Draft every slide without a script" fills the empty slides one after another (they are saved at once, since nothing is replaced, and marked for review). The picture goes to Gemini as an inline image; Gemini reads a PPTX as plain text only, so images need the PDF export.
 - **Discussion chat:** per lecture, optionally scoped to a slide. User may write in Hebrew. AI can return a `proposed_edit` the user accepts or rejects.
 - **"Americanize" action** on any text: revised text + list of changes with Hebrew reasons (shown as a diff).
-- **Segmentation:** each slide's script split into sentences = practice units. Editable (merge/split/reorder).
-- **Estimates:** word count and speaking time per slide at 140 WPM vs target duration.
+- **Segmentation:** each slide's script split into sentences = practice units. Editable on the lecture page ("משפטים" per slide): split before a tapped word, merge with the next, move up/down, start a paragraph; words and speaking time per sentence, over 20 words flagged "long to practice". Saved only on "save"; a split keeps the id on its first part, a merge on the first sentence (the RPC clears audio when the text changed). Later edits keep this segmentation: `resegment` keeps every run of stored sentences still in a line word for word, at splitScript boundaries, and splits only the rest.
+- **Estimates:** word count and speaking time per slide at 140 WPM next to its planned time, flagged when more than 15% over (red) or more than 15% and 10 s under (amber); the lecture's total speaking time next to its target.
 
 ### 5.2 Reference Audio
 - **Plan B (2026-10-04, Azure signup blocked):** correction phrases (▶ American, §5.7) are made by Gemini TTS (`gemini-3.8-flash-tts`, voice `Kore`, Interactions API) in the `ai` function's `speak` action and cached as `.wav` (24 kHz) in `reference-audio`. No word timings and no SSML rate: the slow style is asked for in the prompt. Free tier only: a spent quota answers 429, nothing is charged without a billing account. The bullets below describe the Azure variant, used for script sentences (Sprint 3) if Azure becomes available.
@@ -217,7 +217,7 @@ pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
 
 **Inline editing:**
 - Click the script (or press E) to edit; Esc or click outside saves (debounced autosave).
-- On save, the slide script is re-segmented into `sentences` (`save_slide_script` RPC); unchanged sentences keep their ids so cached reference audio survives. A sentence edited in place keeps its id while it is still similar, and its audio is cleared. Line breaks are kept in `sentences.starts_paragraph`.
+- On save, the slide script is re-segmented into `sentences` (`resegment`, which keeps the sentence editor's segmentation where the text is unchanged; `save_slide_script` RPC); unchanged sentences keep their ids so cached reference audio survives. A sentence edited in place keeps its id while it is still similar, and its audio is cleared. Line breaks are kept in `sentences.starts_paragraph`.
 - "Revert slide" restores the slide's script as it was when the presenter view opened.
 - "Export script" downloads a `.md` with every slide: title, script, transition line.
 

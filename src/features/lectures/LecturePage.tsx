@@ -9,7 +9,7 @@ import { stagger } from '../../components/stagger'
 import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
 import { formatClock } from '../../lib/format'
 import { countWords, joinScript } from '../../lib/script'
-import { planWindows } from '../present/plan'
+import { planWindows, scriptFit, speakingSeconds } from '../present/plan'
 import {
   useDeleteLecture,
   useImportDeck,
@@ -198,6 +198,8 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
     [deck.slides, deck.target_minutes],
   )
   const total = windows.at(-1)?.end ?? 0
+  const words = deck.slides.map((s) => countWords(joinScript(s.sentences)))
+  const totalWords = words.reduce((sum, n) => sum + n, 0)
   const all = useDraftAll(deck)
 
   return (
@@ -210,6 +212,10 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
             {formatClock(total)}
           </span>
           {deck.target_minutes ? ` · יעד ${deck.target_minutes} דק׳` : ' · לפי 140 מילים לדקה'}
+          {' · דיבור משוער '}
+          <span dir="ltr" className={`font-mono ${deck.target_minutes ? fitClass[scriptFit(totalWords, deck.target_minutes * 60)] : ''}`}>
+            {formatClock(Math.round(speakingSeconds(totalWords)))}
+          </span>
         </p>
       </div>
       <DraftAll deck={deck} all={all} />
@@ -226,12 +232,13 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
                   {joinScript(slide.sentences) || '—'}
                 </En>
                 {all.drafted.has(slide.id) ? <p className="mt-1 text-xs text-accent">נוסח ב-AI: עבור על הטיוטה ותקן</p> : null}
-                <div className="mt-1.5 -ms-1.5">
+                <div className="mt-1.5 -ms-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                   <PlannedTime
                     window={windows[index]}
                     manualSeconds={slide.planned_seconds}
                     onSave={(seconds) => updateSlide.mutate({ id: slide.id, patch: { planned_seconds: seconds } })}
                   />
+                  <ScriptEstimate words={words[index] ?? 0} plannedSeconds={windows[index] ? windows[index].end - windows[index].start : null} />
                 </div>
               </div>
               <SlideFrame
@@ -247,6 +254,24 @@ function SlideRows({ deck }: { deck: LectureDeck }) {
         ))}
       </ol>
     </section>
+  )
+}
+
+const fitClass = { fits: '', long: 'text-bad', short: 'text-warn' } as const
+const fitLabel = { fits: '', long: ' · ארוך מהזמן המתוכנן', short: ' · קצר מהזמן המתוכנן' } as const
+
+/** A slide's script length: words and speaking time at 140 WPM, flagged when it strays from the planned time (§5.1). */
+function ScriptEstimate({ words, plannedSeconds }: { words: number; plannedSeconds: number | null }) {
+  if (!words) return null
+  const fit = plannedSeconds === null ? 'fits' : scriptFit(words, plannedSeconds)
+  return (
+    <span className={`text-xs ${fit === 'fits' ? 'text-ink-faint' : fitClass[fit]}`}>
+      {words} מילים · דיבור{' '}
+      <span dir="ltr" className="font-mono">
+        {formatClock(Math.round(speakingSeconds(words)))}
+      </span>
+      {fitLabel[fit]}
+    </span>
   )
 }
 

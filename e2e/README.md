@@ -26,7 +26,8 @@ Start the app first (`npm run dev` in the repo root, port 5173), then from `e2e/
 | `npm run tips` | Coach tips in the run report, on a made-up catalog: the rule-based tips with their evidence, saved with the take, rotated on the next take, a fast take, a phone layout, and no section without a catalog. |
 | `npm run draft` | AI script drafting on the lecture page: the pencil of a slide (intent in, proposal out, accepted or refused, bridge sentence saved), a draft for every slide without a script, a failure that names the slide, and a phone layout. |
 | `npm run americanize` | "Americanize" on the lecture page: no button without a script, a script that needs nothing, a word diff with Hebrew reasons (struck and marked words), refused and accepted (script and bridge saved), a failure with a retry, and a phone layout. |
-| `npm run all` | `screens`, `take`, `retention`, `ai`, `tips`, `draft` and `americanize`. |
+| `npm run segment` | The sentence editor and the estimates on the lecture page: words and speaking time per slide, a short script flagged, split before a word (saved only on "save", the first part keeps its id), a long sentence flagged, reorder then cancel, a new paragraph and a merge, and a phone layout. |
+| `npm run all` | `screens`, `take`, `retention`, `ai`, `tips`, `draft`, `americanize` and `segment`. |
 
 Screenshots go to `e2e/out/` (git ignores it). Each script prints `ok`/`FAIL` lines and exits with 1 on a failure. `APP=<url>` points the scripts at another server (default `http://127.0.0.1:5173/#`).
 

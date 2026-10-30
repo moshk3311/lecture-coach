@@ -11,11 +11,12 @@
     "take": "node take.js",
     "retention": "node retention.js",
     "import": "node import.js",
-    "all": "node screens.js && node take.js && node retention.js && node ai.js && node tips.js && node draft.js && node americanize.js",
+    "all": "node screens.js && node take.js && node retention.js && node ai.js && node tips.js && node draft.js && node americanize.js && node segment.js",
     "ai": "node ai.js",
     "tips": "node tips.js",
     "draft": "node draft.js",
-    "americanize": "node americanize.js"
+    "americanize": "node americanize.js",
+    "segment": "node segment.js"
   },
   "devDependencies": {
     "playwright": "1.56.1"
