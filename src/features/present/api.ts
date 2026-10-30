@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useRef, useState } from 'react'
-import { joinScript, planScriptSave, splitScript } from '../../lib/script'
+import { joinScript, planScriptSave, resegment } from '../../lib/script'
 import { supabase } from '../../lib/supabase'
 import { llm } from '../../providers'
 import { lectureKeys, patchDeckSlide, type LectureDeck, type Sentence, type SlideWithSentences } from '../lectures/api'
@@ -77,7 +77,7 @@ export function useScriptSaver(lectureId: string) {
             const deck = queryClient.getQueryData<LectureDeck | null>(lectureKeys.detail(lectureId))
             const slide = deck?.slides.find((s) => s.id === slideId)
             if (!slide) break
-            const sentences = splitScript(next)
+            const sentences = resegment(slide.sentences, next)
             if (joinScript(sentences) === joinScript(slide.sentences)) {
               // Nothing to save (e.g. the text went back to what is stored).
               setStatus((prev) => (prev[slideId] === 'error' ? { ...prev, [slideId]: 'idle' } : prev))

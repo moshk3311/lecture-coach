@@ -3,7 +3,7 @@
 // without a script is filled in directly (nothing is lost).
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useCallback, useRef, useState } from 'react'
-import { joinScript, planScriptSave, splitScript } from '../../lib/script'
+import { joinScript, planScriptSave, resegment } from '../../lib/script'
 import { supabase } from '../../lib/supabase'
 import { llm, type ScriptDraft } from '../../providers'
 import { lectureKeys, patchDeckSlide, type LectureDeck, type Sentence, type SlideWithSentences } from './api'
@@ -24,7 +24,7 @@ export async function saveScript(
 ): Promise<void> {
   const { data, error } = await supabase.rpc('save_slide_script', {
     p_slide_id: slide.id,
-    p_sentences: planScriptSave(slide.sentences, splitScript(script.text)),
+    p_sentences: planScriptSave(slide.sentences, resegment(slide.sentences, script.text)),
   })
   if (error) throw error
   patchDeckSlide(queryClient, lectureId, slide.id, { sentences: data as Sentence[] })

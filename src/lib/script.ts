@@ -58,6 +58,61 @@ export function joinScript(sentences: ScriptSentence[]): string {
   return sentences.map((s, i) => (i === 0 ? s.text : `${s.starts_paragraph ? '\n' : ' '}${s.text}`)).join('')
 }
 
+/**
+ * Splits edited script text like splitScript, but keeps the owner's own segmentation: a run of stored
+ * sentences that is still in a line word for word, starting and ending where splitScript would cut,
+ * stays as those sentences. So a merge or a split made in the sentence editor survives later edits.
+ */
+export function resegment(stored: ScriptSentence[], text: string): ScriptSentence[] {
+  const known = stored.map((s) => normalize(s.text)).filter(Boolean)
+  const out: ScriptSentence[] = []
+  for (const rawLine of text.split(/\r?\n/)) {
+    const units = splitScript(rawLine).map((s) => s.text)
+    if (!units.length) continue
+    const line = units.join(' ')
+    const starts: number[] = []
+    const endUnit = new Map<number, number>()
+    let at = 0
+    units.forEach((unit, i) => {
+      starts.push(at)
+      at += unit.length
+      endUnit.set(at, i)
+      at += 1
+    })
+
+    const pieces: string[] = []
+    for (let u = 0; u < units.length; ) {
+      const run = storedRun(known, line, starts[u]!, endUnit)
+      if (run) {
+        pieces.push(...run.texts)
+        u = run.lastUnit + 1
+      } else {
+        pieces.push(units[u]!)
+        u += 1
+      }
+    }
+    pieces.forEach((piece, i) => out.push({ text: piece, starts_paragraph: i === 0 }))
+  }
+  return out
+}
+
+/** The longest run of consecutive stored sentences found at `start` that ends where a unit ends. */
+function storedRun(known: string[], line: string, start: number, endUnit: Map<number, number>) {
+  let best: { texts: string[]; lastUnit: number; end: number } | null = null
+  known.forEach((first, i) => {
+    if (!line.startsWith(first, start)) return
+    let end = start + first.length
+    for (let k = i; ; ) {
+      const lastUnit = endUnit.get(end)
+      if (lastUnit !== undefined && (!best || end > best.end)) best = { texts: known.slice(i, k + 1), lastUnit, end }
+      const next = known[++k]
+      if (next === undefined || line[end] !== ' ' || !line.startsWith(next, end + 1)) break
+      end += 1 + next.length
+    }
+  })
+  return best as { texts: string[]; lastUnit: number; end: number } | null
+}
+
 export function countWords(text: string): number {
   return text.match(/[\p{L}\p{N}]+(?:['’]\p{L}+)*/gu)?.length ?? 0
 }
@@ -130,4 +185,46 @@ function similarity(x: string, y: string): number {
     }
   }
   return (2 * common) / (wx.length + wy.length)
+}
+
+// Sentence editor (§5.1): the owner's own segmentation of a slide. A sentence keeps its id when it is
+// split (the first part) or merged (the first sentence); save_slide_script clears its audio when the
+// text changed.
+
+/** A sentence longer than this is hard to practice in one take (the Americanize rule, §8). */
+export const LONG_SENTENCE_WORDS = 20
+
+/** Splits the sentence at `index` before its word `word` (1 … words − 1). */
+export function splitSentence(list: SentenceDraft[], index: number, word: number): SentenceDraft[] {
+  const sentence = list[index]
+  const words = sentence ? normalize(sentence.text).split(' ') : []
+  if (!sentence || word < 1 || word >= words.length) return list
+  return [
+    ...list.slice(0, index),
+    { ...sentence, text: words.slice(0, word).join(' ') },
+    { id: null, text: words.slice(word).join(' '), starts_paragraph: false },
+    ...list.slice(index + 1),
+  ]
+}
+
+/** Merges the sentence at `index` with the one after it. */
+export function mergeWithNext(list: SentenceDraft[], index: number): SentenceDraft[] {
+  const [a, b] = [list[index], list[index + 1]]
+  if (!a || !b) return list
+  return [...list.slice(0, index), { ...a, text: `${normalize(a.text)} ${normalize(b.text)}` }, ...list.slice(index + 2)]
+}
+
+/** Moves the sentence at `index` one place up (−1) or down (+1); the first sentence always opens a paragraph. */
+export function moveSentence(list: SentenceDraft[], index: number, delta: -1 | 1): SentenceDraft[] {
+  const to = index + delta
+  if (!list[index] || !list[to]) return list
+  const next = [...list]
+  ;[next[index], next[to]] = [next[to]!, next[index]!]
+  return next.map((s, i) => (i === 0 && !s.starts_paragraph ? { ...s, starts_paragraph: true } : s))
+}
+
+/** Starts a new paragraph at the sentence, or joins it to the paragraph before (not the first sentence). */
+export function toggleParagraph(list: SentenceDraft[], index: number): SentenceDraft[] {
+  if (index < 1 || !list[index]) return list
+  return list.map((s, i) => (i === index ? { ...s, starts_paragraph: !s.starts_paragraph } : s))
 }

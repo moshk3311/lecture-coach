@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MIN_SLIDE_SECONDS, planWindows, timerStatus } from './plan'
+import { MIN_SLIDE_SECONDS, planWindows, scriptFit, speakingSeconds, timerStatus } from './plan'
 
 const slide = (words: number, plannedSeconds: number | null = null) => ({ words, plannedSeconds })
 
@@ -61,5 +61,26 @@ describe('timerStatus', () => {
     expect(timerStatus(360, window, true)).toBe('on-time')
     expect(timerStatus(375, window, true)).toBe('over')
     expect(timerStatus(376, window, true)).toBe('late')
+  })
+})
+
+describe('scriptFit', () => {
+  it('reads words at 140 WPM', () => {
+    expect(speakingSeconds(140)).toBe(60)
+    expect(speakingSeconds(0)).toBe(0)
+  })
+
+  it('flags a script more than 15% over or under its planned time', () => {
+    expect(scriptFit(140, 60)).toBe('fits')
+    expect(scriptFit(140, 53)).toBe('fits')
+    expect(scriptFit(140, 51)).toBe('long')
+    expect(scriptFit(140, 72)).toBe('short')
+    expect(scriptFit(140, 70)).toBe('fits')
+  })
+
+  it('never calls a slide short for less than 10 seconds of slack', () => {
+    expect(scriptFit(10, 10)).toBe('fits')
+    expect(scriptFit(14, 16)).toBe('fits')
+    expect(scriptFit(14, 21)).toBe('short')
   })
 })
