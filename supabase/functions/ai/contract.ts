@@ -57,7 +57,7 @@ export type TipTrigger = (typeof TIP_TRIGGERS)[number]
 /** What only listening reveals: Gemini may add a tip for these (§5.8). */
 export const HEARD_TRIGGERS: readonly TipTrigger[] = ['low_energy', 'flat_emotion', 'no_hook', 'no_key_point', 'no_story', 'weak_ending']
 
-/** Azure measures these; Gemini reports them only for a take that was not assessed (no Azure keys, or not yet scored). */
+/** Speech habits Gemini may also add a tip for, from what it hears of pace, pauses and wording (§5.8). */
 export const LISTENED_TRIGGERS: readonly TipTrigger[] = ['pace_fast', 'pace_slow', 'few_pauses', 'long_pauses', 'fillers', 'monotone', 'and_heavy', 'low_you']
 
 /**
@@ -261,8 +261,6 @@ export type RunReportContext = {
   catalogSlugs: string[]
   /** Slugs of the tips the rules chose for this take (saved in metrics.tips). */
   ruleSlugs: string[]
-  /** Azure has scored the take, so it owns the measured triggers. */
-  assessed: boolean
 }
 
 /**
@@ -329,7 +327,7 @@ function reportTips(value: unknown, context: RunReportContext): ReportTip[] {
     }
     const anchor = slug !== null && rule.has(slug)
     if (!anchor) {
-      const hearable = HEARD_TRIGGERS.includes(trigger) || (!context.assessed && LISTENED_TRIGGERS.includes(trigger))
+      const hearable = HEARD_TRIGGERS.includes(trigger) || LISTENED_TRIGGERS.includes(trigger)
       if (!context.heardAudio || !hearable) continue
     }
     const title = slug === null ? text(item.title_he) : ''

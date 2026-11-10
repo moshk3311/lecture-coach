@@ -19,7 +19,6 @@ const context: RunReportContext = {
   createdAt: '2026-10-01T12:00:00.000Z',
   catalogSlugs: ['pace-calm', 'pause-before-key', 'hook-real-story', 'close-with-the-line'],
   ruleSlugs: ['pace-calm'],
-  assessed: false,
 }
 
 const correction = (fields: Record<string, unknown> = {}) => ({
@@ -195,11 +194,9 @@ describe('normalizeRunReport tips', () => {
     expect(out.map((t) => t.slug)).toEqual(['pace-calm', 'hook-real-story', 'close-with-the-line'])
   })
 
-  it('accepts the measured triggers as extras only for a take that was not assessed', () => {
-    const extra = tip({ slug: 'pause-before-key', trigger: 'few_pauses' })
-    expect(tips([extra])).toHaveLength(1)
-    expect(tips([extra], { assessed: true })).toHaveLength(0)
-    expect(tips([tip()], { assessed: true })).toHaveLength(1)
+  it('accepts the speech habits Gemini hears as extras, but not the timing triggers', () => {
+    expect(tips([tip({ slug: 'pause-before-key', trigger: 'few_pauses' })])).toHaveLength(1)
+    expect(tips([tip({ slug: 'pause-before-key', trigger: 'overtime' })])).toHaveLength(0)
   })
 
   it('needs the recording for extras, and quotes nothing without it', () => {

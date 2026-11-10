@@ -26,9 +26,9 @@ corrections, only when the recording is attached (otherwise return an empty list
 - If nothing sounds off, return an empty list. Never invent a correction.
 
 tips: coach tips from the speaker's own notebook, at most 5 (the facts list the CATALOG and the RULE TIPS):
-- The RULE TIPS were chosen from the measurements. Return each one, with its own slug and trigger, tied to the moment in the recording where it applies: slide, approx_start_sec, said_en (the exact words said then) and personal_he (one Hebrew sentence that ties the tip to that moment).
+- The RULE TIPS were chosen by rules from the measured times and the earlier takes. Return each one, with its own slug and trigger, tied to the moment in the recording where it applies: slide, approx_start_sec, said_en (the exact words said then) and personal_he (one Hebrew sentence that ties the tip to that moment).
 - Beyond them, add up to 2 tips for what only listening reveals: low_energy, flat_emotion, no_hook (no hook in the first minute), no_key_point (the key message is unclear), no_story (no story or example with a person), weak_ending (the ending trails off).
-- When the facts say the speech was not measured, you may also report what you hear of: pace_fast, pace_slow, few_pauses, long_pauses, fillers, monotone, and_heavy (many "and", few "but"), low_you (little direct address). Report one only when it clearly shows in the recording.
+- You may also report what you hear of: pace_fast, pace_slow, few_pauses, long_pauses, fillers, monotone, and_heavy (many "and", few "but"), low_you (little direct address). Report one only when it clearly shows in the recording.
 - Take the slug from the CATALOG: a tip whose triggers include yours. Never invent a slug. When no catalog tip fits, set slug to null and write title_he, body_he and example_en (an original English line) yourself. Never present your own advice as coming from the notebook.
 - Without the recording, return only the RULE TIPS, with said_en null and approx_start_sec null.
 - When nothing stands out, add no extra tip. Never invent.
@@ -41,19 +41,6 @@ export type SlideFacts = {
   seconds: number
   plannedSeconds: number
   status: string
-}
-
-export type SpeechFacts = {
-  wpm: number | null
-  perSlideWpm: { position: number; wpm: number | null }[]
-  fillers: number
-  fillersPerMinute: number
-  longPauses: number
-  longestPauseSec: number
-  coverage: number
-  omitted: string[]
-  weakest: { word: string; accuracy: number }[]
-  scores: { pronunciation: number | null; accuracy: number | null; fluency: number | null; prosody: number | null }
 }
 
 /** A catalog tip as the prompt lists it: enough to choose by. */
@@ -71,7 +58,6 @@ export type RunReportInput = {
   withAudio: boolean
   visits: { position: number; start: number; end: number }[]
   slides: SlideFacts[]
-  speech: SpeechFacts | null
   script: string
   catalog: CatalogEntry[]
   ruleTips: RuleTip[]
@@ -89,8 +75,6 @@ export function runReportPrompt(input: RunReportInput): string {
     'Time per slide, actual vs planned:',
     ...input.slides.map((s) => `- slide ${s.position} "${s.title}": ${clock(s.seconds)} vs ${clock(s.plannedSeconds)} (${s.status})`),
     '',
-    ...speechLines(input.speech),
-    '',
     ...tipLines(input.catalog, input.ruleTips),
     '',
     'Script, what the speaker planned to say (for context only):',
@@ -106,25 +90,5 @@ function tipLines(catalog: CatalogEntry[], ruleTips: RuleTip[]): string[] {
     '',
     'RULE TIPS (chosen from the measurements; slug · trigger · measurement):',
     ...(ruleTips.length ? ruleTips.map((tip) => `- ${tip.slug} · ${tip.trigger ?? 'none'} · ${tip.evidence_he ?? 'no measurement'}`) : ['(none)']),
-  ]
-}
-
-function speechLines(speech: SpeechFacts | null): string[] {
-  if (!speech) return ['Speech measurements: not available (the take was not assessed).']
-  const scores = Object.entries(speech.scores)
-    .filter(([, value]) => value !== null)
-    .map(([name, value]) => `${name} ${Math.round(value!)}`)
-  return [
-    'Speech measurements (Azure, from the recording):',
-    `- pace: ${speech.wpm ?? 'unknown'} words per minute (target band 130-160); per slide: ${
-      speech.perSlideWpm.map((s) => `${s.position}: ${s.wpm ?? '-'}`).join(', ') || 'none'
-    }`,
-    `- fillers: ${speech.fillers} (${speech.fillersPerMinute} per minute)`,
-    `- long pauses (over 1.5 s): ${speech.longPauses}, the longest ${speech.longestPauseSec.toFixed(1)} s`,
-    `- script coverage: ${Math.round(speech.coverage * 100)}%${
-      speech.omitted.length ? ` (omitted, for example: ${speech.omitted.slice(0, 12).join(', ')})` : ''
-    }`,
-    `- scores out of 100: ${scores.join(', ') || 'none'}`,
-    `- weakest words: ${speech.weakest.map((w) => `${w.word} ${Math.round(w.accuracy)}`).join(', ') || 'none'}`,
   ]
 }

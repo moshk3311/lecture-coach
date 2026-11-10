@@ -2,7 +2,7 @@
 // `metrics` is the app's RunMetrics (src/features/runs/api.ts) stored as JSON, so it is read field
 // by field.
 import { isObject, list, num, text } from './json.ts'
-import type { CatalogEntry, RuleTip, RunReportInput, SlideFacts, SpeechFacts } from './prompts/runReport.ts'
+import type { CatalogEntry, RuleTip, RunReportInput, SlideFacts } from './prompts/runReport.ts'
 
 export type AttemptRow = {
   id: string
@@ -12,10 +12,6 @@ export type AttemptRow = {
   audio_path: string | null
   duration_sec: number | string
   metrics: unknown
-  pron_score: number | null
-  accuracy: number | null
-  fluency: number | null
-  prosody: number | null
 }
 
 export type LectureRow = { title: string; audience: string | null; target_minutes: number | null }
@@ -46,7 +42,6 @@ export function reportInput(attempt: AttemptRow, lecture: LectureRow | null, wit
         },
       ]
     }),
-    speech: speechFacts(metrics.speech, attempt),
     script: attempt.reference_text ?? '',
     catalog,
     ruleTips: ruleTips(metrics.tips),
@@ -63,32 +58,3 @@ export function ruleTips(value: unknown): RuleTip[] {
   })
 }
 
-/** What the Azure assessment measured, or null when the take was not assessed. */
-function speechFacts(speech: unknown, attempt: AttemptRow): SpeechFacts | null {
-  if (!isObject(speech)) return null
-  const pauses = isObject(speech.pauses) ? speech.pauses : {}
-  const coverage = isObject(speech.coverage) ? speech.coverage : {}
-  return {
-    wpm: num(speech.wpm),
-    perSlideWpm: list(speech.perSlide).flatMap((slide) => {
-      const position = isObject(slide) ? num(slide.position) : null
-      return isObject(slide) && position !== null ? [{ position, wpm: num(slide.wpm) }] : []
-    }),
-    fillers: num(speech.fillers) ?? 0,
-    fillersPerMinute: num(speech.fillersPerMinute) ?? 0,
-    longPauses: num(pauses.long) ?? 0,
-    longestPauseSec: (num(pauses.longestMs) ?? 0) / 1000,
-    coverage: num(coverage.ratio) ?? 0,
-    omitted: list(coverage.omitted).map(text).filter(Boolean),
-    weakest: list(speech.weakest).flatMap((word) => {
-      const accuracy = isObject(word) ? num(word.accuracy) : null
-      return isObject(word) && accuracy !== null && text(word.word) ? [{ word: text(word.word), accuracy }] : []
-    }),
-    scores: {
-      pronunciation: num(attempt.pron_score),
-      accuracy: num(attempt.accuracy),
-      fluency: num(attempt.fluency),
-      prosody: num(attempt.prosody),
-    },
-  }
-}

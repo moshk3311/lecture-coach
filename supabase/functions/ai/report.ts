@@ -9,7 +9,7 @@ import { type CatalogEntry, RUN_REPORT_SYSTEM, runReportPrompt } from './prompts
 import { type AttemptRow, type LectureRow, reportInput } from './reportInput.ts'
 import { idField, RequestError } from './request.ts'
 
-const ATTEMPT_COLUMNS = 'id,mode,lecture_id,reference_text,audio_path,duration_sec,metrics,pron_score,accuracy,fluency,prosody'
+const ATTEMPT_COLUMNS = 'id,mode,lecture_id,reference_text,audio_path,duration_sec,metrics'
 
 export async function runReport(user: AuthedUser, payload: unknown, gemini: GeminiConfig): Promise<RunReportFeedback> {
   const db = userDb(user)
@@ -44,7 +44,6 @@ export async function runReport(user: AuthedUser, payload: unknown, gemini: Gemi
     createdAt: new Date().toISOString(),
     catalogSlugs: catalog.map((tip) => tip.slug),
     ruleSlugs: input.ruleTips.map((tip) => tip.slug),
-    assessed: input.speech !== null,
   })
   await db.update(`attempts?id=eq.${attempt.id}`, { ai_feedback: report })
   return report
