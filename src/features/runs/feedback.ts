@@ -1,6 +1,6 @@
 // Gemini's run report as the app shows it (ARCHITECTURE §5.7): the saved JSON, Hebrew labels, and
 // where each correction sits in the recording.
-import { anchorPhrase, type PhraseSpan } from '../../lib/anchor'
+import { anchorSpan, type PhraseSpan } from '../../lib/anchor'
 import type { Correction, CorrectionCategory, DeliveryTopic, RunReportFeedback, Severity } from '../../providers'
 
 /** The report saved in attempts.ai_feedback, when it is one this version of the app can show. */
@@ -30,21 +30,11 @@ export const TOPIC_LABELS: Record<DeliveryTopic, string> = {
   structure: 'מבנה',
 }
 
-type WordRow = { word: string; offset_ms: number | null; duration_ms: number | null }
-
-/**
- * The span ▶ You plays: the quote anchored to Azure's words when the take was assessed, else
- * Gemini's estimate. Null when Gemini gave no time.
- */
-export function correctionSpan(correction: Correction, words: WordRow[], durationSec: number): PhraseSpan | null {
+/** The span ▶ You plays: Gemini's estimate with a margin. Null when Gemini gave no time. */
+export function correctionSpan(correction: Correction, durationSec: number): PhraseSpan | null {
   if (correction.approx_start_sec === null) return null
-  const timeline = words.flatMap((w) =>
-    w.offset_ms === null || w.duration_ms === null ? [] : [{ word: w.word, offsetMs: w.offset_ms, durationMs: w.duration_ms }],
-  )
-  return anchorPhrase(
-    correction.you_said_en,
+  return anchorSpan(
     { startSec: correction.approx_start_sec, endSec: correction.approx_end_sec ?? correction.approx_start_sec },
-    timeline,
     durationSec * 1000,
   )
 }

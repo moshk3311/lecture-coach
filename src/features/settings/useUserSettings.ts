@@ -6,12 +6,11 @@ import { useAuth } from '../auth/useAuth'
 export type UserSettings = Tables<'user_settings'>
 
 /** Mirrors the column defaults, used until the row loads (it is created by a trigger on signup). */
-export const DEFAULT_SETTINGS: Omit<UserSettings, 'user_id'> = {
+export const DEFAULT_SETTINGS: Omit<UserSettings, 'user_id' | 'azure_minutes_cap'> = {
   voice: 'en-US-AndrewNeural',
   slow_rate: '-25%',
   send_audio_to_llm: true,
   privacy_ack: false,
-  azure_minutes_cap: 300,
 }
 
 export function useUserSettings() {

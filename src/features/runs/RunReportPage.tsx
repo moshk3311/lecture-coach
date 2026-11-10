@@ -1,17 +1,15 @@
-import { LoaderCircle, Wand2 } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { LoaderCircle } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useParams } from 'react-router'
 import { Alert } from '../../components/Alert'
 import { BackLink } from '../../components/BackLink'
 import { En } from '../../components/En'
 import { stagger } from '../../components/stagger'
-import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
+import { cardStyles, kickerStyles } from '../../components/styles'
 import { formatClock } from '../../lib/format'
-import { WPM_BAND, type SlideTiming, type TimingStatus } from '../../lib/metrics'
-import { scoreBand } from '../../lib/scoreBands'
+import type { SlideTiming, TimingStatus } from '../../lib/metrics'
 import { AiFeedback } from './AiFeedback'
 import { useRecordingUrl, useRun, type RunDetail, type RunMetrics } from './api'
-import { useAssessRun } from './assess'
 import { KEEP_RECORDINGS } from './retention'
 import { TipsSection } from './TipsSection'
 
@@ -42,7 +40,6 @@ export function RunReportPage() {
 
 function Report({ run, lectureId }: { run: RunDetail; lectureId: string }) {
   const metrics = run.metrics as unknown as RunMetrics
-  const speech = metrics.speech
   const onTrack = metrics.slides.filter((s) => s.status === 'on-track').length
   const target = metrics.targetSeconds
 
@@ -61,7 +58,7 @@ function Report({ run, lectureId }: { run: RunDetail; lectureId: string }) {
         <div className="mt-6 h-px bg-rule" />
       </header>
 
-      <section className="rise-in grid grid-cols-2 gap-3 md:grid-cols-4" style={stagger(2)}>
+      <section className="rise-in grid grid-cols-2 gap-3" style={stagger(2)}>
         <Tile label="זמן כולל" tone={target ? totalTone(metrics.totalSeconds, target) : 'neutral'}>
           <span dir="ltr">{formatClock(metrics.totalSeconds)}</span>
           {target ? <Sub>יעד {formatClock(target)}</Sub> : null}
@@ -71,23 +68,11 @@ function Report({ run, lectureId }: { run: RunDetail; lectureId: string }) {
             {onTrack}/{metrics.slides.length}
           </span>
         </Tile>
-        <Tile label="קצב" tone={speech?.wpm ? (speech.wpm >= WPM_BAND.min && speech.wpm <= WPM_BAND.max ? 'good' : 'warn') : 'neutral'}>
-          {speech?.wpm ? <span dir="ltr">{speech.wpm}</span> : '—'}
-          <Sub>
-            מילים לדקה · יעד {WPM_BAND.min}–{WPM_BAND.max}
-          </Sub>
-        </Tile>
-        <Tile label="הגייה" tone={run.pron_score === null ? 'neutral' : scoreBand(run.pron_score)}>
-          {run.pron_score === null ? '—' : <span dir="ltr">{Math.round(run.pron_score)}</span>}
-          <Sub>{run.pron_score !== null ? 'מתוך 100' : run.audio_path ? 'אחרי הערכה' : 'לא הוערכה'}</Sub>
-        </Tile>
       </section>
 
       <Recording path={run.audio_path} />
 
-      {speech ? <SpeechDetails run={run} metrics={metrics} /> : run.audio_path ? <AssessPanel run={run} /> : null}
-
-      <SlideTimes slides={metrics.slides} perSlideWpm={speech?.perSlide} />
+      <SlideTimes slides={metrics.slides} />
 
       <AiFeedback run={run} />
 
@@ -126,7 +111,7 @@ function Recording({ path }: { path: string | null }) {
       <p className="mb-2 text-sm text-ink-soft">ההקלטה</p>
       {!path ? (
         <p className="text-sm leading-relaxed text-ink-faint">
-          נמחקה אוטומטית: נשמרות רק ההקלטות של {KEEP_RECORDINGS} החזרות האחרונות. הדוח והציונים נשארים.
+          נמחקה אוטומטית: נשמרות רק ההקלטות של {KEEP_RECORDINGS} החזרות האחרונות. הדוח נשאר.
         </p>
       ) : isError ? (
         <p className="text-sm text-ink-faint">לא הצלחתי לטעון את ההקלטה. רענן את הדף.</p>
@@ -139,102 +124,6 @@ function Recording({ path }: { path: string | null }) {
   )
 }
 
-function AssessPanel({ run }: { run: RunDetail }) {
-  const assess = useAssessRun()
-  const [seconds, setSeconds] = useState(0)
-  const total = Number(run.duration_sec)
-
-  return (
-    <section className={`${cardStyles} rise-in mt-6 p-5 md:p-6`} style={stagger(4)}>
-      <h2 className="font-display text-lg font-semibold">הערכת הגייה</h2>
-      <p className="mt-2 max-w-prose text-sm leading-relaxed text-ink-soft">
-        Azure מאזין להקלטה ומחזיר ציון לכל מילה, קצב, הפסקות, מילות מילוי וכמה מהתסריט נאמר. ההערכה צורכת כ-
-        {Math.ceil(total / 60)} דקות מהמכסה החודשית.
-      </p>
-      {assess.isError ? (
-        <div className="mt-4">
-          <Alert>{assess.error instanceof Error && assess.error.message ? assess.error.message : 'ההערכה נכשלה.'}</Alert>
-        </div>
-      ) : null}
-      {assess.isPending ? (
-        <div className="mt-4" role="status">
-          <p className="text-sm text-ink-soft">
-            מעריך… <span dir="ltr">{formatClock(seconds)}</span> מתוך <span dir="ltr">{formatClock(total)}</span>
-          </p>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-rule">
-            <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.min(100, (seconds / total) * 100)}%` }} />
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => assess.mutate({ attempt: run, onProgress: setSeconds })}
-          className={`${buttonStyles.primary} mt-4`}
-        >
-          <Wand2 size={18} aria-hidden="true" />
-          {assess.isError ? 'נסה שוב' : 'הרץ הערכה'}
-        </button>
-      )}
-    </section>
-  )
-}
-
-function SpeechDetails({ run, metrics }: { run: RunDetail; metrics: RunMetrics }) {
-  const speech = metrics.speech!
-  const scores: [string, number | null][] = [
-    ['Pronunciation', run.pron_score],
-    ['Accuracy', run.accuracy],
-    ['Fluency', run.fluency],
-    ['Prosody', run.prosody],
-  ]
-  return (
-    <section className={`${cardStyles} rise-in mt-6 p-5 md:p-6`} style={stagger(4)}>
-      <h2 className="font-display text-lg font-semibold">הגייה ודיבור</h2>
-      <En as="div" className="mt-3 flex flex-wrap gap-2">
-        {scores.map(([name, value]) => (
-          <span key={name} className="rounded-full border border-rule px-3 py-1 font-mono text-sm">
-            {name}{' '}
-            <span className={value === null ? 'text-ink-faint' : TONE_TEXT[scoreBand(value)]}>{value === null ? '—' : Math.round(value)}</span>
-          </span>
-        ))}
-      </En>
-      <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-        <Row label="מילות מילוי">
-          {speech.fillers} (<span dir="ltr">{speech.fillersPerMinute}</span> לדקה)
-        </Row>
-        <Row label="הפסקות ארוכות (מעל 1.5 שנ׳)">
-          {speech.pauses.long} · הארוכה <span dir="ltr">{(speech.pauses.longestMs / 1000).toFixed(1)}</span> שנ׳
-        </Row>
-        <Row label="כיסוי התסריט">
-          <span dir="ltr">{Math.round(speech.coverage.ratio * 100)}%</span>
-        </Row>
-        <Row label="מילים שלא נאמרו">{speech.coverage.omitted.length}</Row>
-      </dl>
-      {speech.weakest.length ? (
-        <div className="mt-5">
-          <p className="text-sm text-ink-soft">המילים החלשות</p>
-          <En as="ul" className="mt-2 flex flex-wrap gap-2">
-            {speech.weakest.map((w) => (
-              <li key={w.word} className="rounded-lg bg-bad-soft px-2.5 py-1 text-sm">
-                {w.word} <span className="font-mono text-bad">{Math.round(w.accuracy)}</span>
-              </li>
-            ))}
-          </En>
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-rule py-1.5">
-      <dt className="text-ink-soft">{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  )
-}
-
 const STATUS: Record<TimingStatus, { label: string; className: string }> = {
   'on-track': { label: 'בזמן', className: 'bg-good-soft text-good' },
   long: { label: 'ארוך', className: 'bg-warn-soft text-warn' },
@@ -242,14 +131,13 @@ const STATUS: Record<TimingStatus, { label: string; className: string }> = {
   skipped: { label: 'דולג', className: 'bg-ink/5 text-ink-faint' },
 }
 
-function SlideTimes({ slides, perSlideWpm }: { slides: SlideTiming[]; perSlideWpm?: { position: number; wpm: number | null }[] }) {
+function SlideTimes({ slides }: { slides: SlideTiming[] }) {
   const longest = Math.max(1, ...slides.map((s) => Math.max(s.seconds, s.plannedSeconds)))
   return (
     <section className="rise-in mt-8" style={stagger(5)}>
       <h2 className="mb-4 font-display text-xl font-semibold">זמן לכל שקף</h2>
       <ol className="grid grid-cols-1 gap-2">
         {slides.map((slide) => {
-          const wpm = perSlideWpm?.find((p) => p.position === slide.position)?.wpm
           const status = STATUS[slide.status]
           return (
             <li key={slide.position} className={`${cardStyles} p-3.5`}>
@@ -274,12 +162,6 @@ function SlideTimes({ slides, perSlideWpm }: { slides: SlideTiming[]; perSlideWp
                   <span dir="ltr" className="font-mono">
                     {formatClock(slide.plannedSeconds)}
                   </span>
-                  {wpm ? (
-                    <>
-                      {' '}
-                      · <span dir="ltr">{wpm}</span> מ׳/ד׳
-                    </>
-                  ) : null}
                 </span>
               </div>
             </li>

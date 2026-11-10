@@ -1,24 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  buildRunTiming,
-  fillerCount,
-  pauseStats,
-  scriptCoverage,
-  slideVisits,
-  timingStatus,
-  weakestWords,
-  wordsOnSlide,
-  wordsPerMinute,
-  type TimedWord,
-} from './metrics'
-
-const word = (w: string, offsetMs: number, durationMs = 300, accuracy: number | null = 90, errorType = 'None'): TimedWord => ({
-  word: w,
-  offsetMs,
-  durationMs,
-  accuracy,
-  errorType,
-})
+import { buildRunTiming, slideVisits, timingStatus } from './metrics'
 
 describe('slideVisits', () => {
   it('turns marks into visits, merging repeats and ending at the take end', () => {
@@ -87,64 +68,5 @@ describe('buildRunTiming', () => {
       [3, 0, 30, null, 'skipped'],
     ])
     expect(timing.totalSeconds).toBe(80)
-  })
-})
-
-describe('speech metrics', () => {
-  // 11 words over 5 s → 132 WPM, with pauses of 0.7 s and 0.8 s.
-  const words = [
-    word('Good', 0),
-    word('morning', 300),
-    word('everyone', 1300),
-    word('today', 1600),
-    word('we', 1900),
-    word('walk', 2200),
-    word('through', 4500),
-    word('the', 4700, 100),
-    word('plant', 4800, 200, 55, 'Mispronunciation'),
-    word('um', 3000, 200),
-    word('granulation', 3300, 400, 40),
-  ].sort((x, y) => x.offsetMs - y.offsetMs)
-
-  it('computes words per minute from first start to last end', () => {
-    expect(wordsPerMinute(words)).toBe(132)
-    expect(wordsPerMinute([word('one', 0)])).toBeNull()
-  })
-
-  it('counts short and long pauses and the longest gap', () => {
-    expect(pauseStats(words)).toEqual({ short: 2, long: 0, longestMs: 800 })
-    expect(pauseStats([word('a', 0), word('b', 2500)])).toEqual({ short: 0, long: 1, longestMs: 2200 })
-  })
-
-  it('counts fillers, but not "like" or "you know" that the script contains', () => {
-    expect(fillerCount(['so', 'um', 'we', 'like', 'uh', 'this', 'you', 'know'])).toBe(4)
-    expect(fillerCount(['plants', 'like', 'this'], ['Plants', 'like', 'this'])).toBe(0)
-  })
-
-  it('finds the weakest distinct words, worst first', () => {
-    expect(weakestWords(words)).toEqual([
-      { word: 'granulation', accuracy: 40 },
-      { word: 'plant', accuracy: 55 },
-    ])
-  })
-
-  it('assigns words to the slide that was on screen', () => {
-    const visits = [
-      { position: 1, start: 0, end: 2 },
-      { position: 2, start: 2, end: 6 },
-    ]
-    expect(wordsOnSlide(words, visits, 1).map((w) => w.word)).toEqual(['Good', 'morning', 'everyone', 'today', 'we'])
-  })
-})
-
-describe('scriptCoverage', () => {
-  it('reports the share of the script said, plus omitted and inserted words', () => {
-    const script = 'Good morning everyone. Today we walk through the plant.'.split(' ')
-    const said = ['good', 'morning', 'um', 'today', 'we', 'walk', 'through', 'plant']
-    expect(scriptCoverage(script, said)).toEqual({ ratio: 0.78, omitted: ['everyone', 'the'], inserted: ['um'] })
-  })
-
-  it('handles an empty script', () => {
-    expect(scriptCoverage([], [])).toEqual({ ratio: 1, omitted: [], inserted: [] })
   })
 })

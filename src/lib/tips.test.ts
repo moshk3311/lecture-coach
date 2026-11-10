@@ -10,17 +10,6 @@ const facts = (over: Partial<TipFacts> = {}): TipFacts => ({
     { position: 1, seconds: 40, plannedSeconds: 40, status: 'on-track' },
     { position: 2, seconds: 60, plannedSeconds: 60, status: 'on-track' },
   ],
-  speech: null,
-  prosody: null,
-  ...over,
-})
-
-const speech = (over: Partial<NonNullable<TipFacts['speech']>> = {}): NonNullable<TipFacts['speech']> => ({
-  wpm: 145,
-  perSlide: [],
-  fillersPerMinute: 0.5,
-  longPauses: 0,
-  coverage: 0.95,
   ...over,
 })
 
@@ -28,7 +17,7 @@ const triggers = (f: TipFacts, h: TipHistory = history) => detectIssues(f, h).ma
 
 describe('detectIssues', () => {
   it('finds nothing in a clean, in-time take', () => {
-    expect(triggers(facts({ speech: speech(), prosody: 80 }))).toEqual([])
+    expect(triggers(facts())).toEqual([])
   })
 
   it('flags overtime only past 10% of the target, with the times as evidence', () => {
@@ -55,53 +44,16 @@ describe('detectIssues', () => {
     expect(triggers(facts({ slides }))).toContain('long_intro')
   })
 
-  it('flags a fast take, or fast on two slides, with the slides in the evidence', () => {
-    expect(triggers(facts({ speech: speech({ wpm: 172 }) }))).toContain('pace_fast')
-    const two = speech({ wpm: 150, perSlide: [{ position: 4, wpm: 170 }, { position: 6, wpm: 168 }, { position: 5, wpm: 140 }] })
-    const issue = detectIssues(facts({ speech: two }), history).find((i) => i.trigger === 'pace_fast')
-    expect(issue?.evidence_he).toContain('4, 6')
-    const one = speech({ wpm: 150, perSlide: [{ position: 4, wpm: 170 }] })
-    expect(triggers(facts({ speech: one }))).not.toContain('pace_fast')
-  })
-
-  it('flags a slow take', () => {
-    expect(triggers(facts({ speech: speech({ wpm: 118 }) }))).toContain('pace_slow')
-  })
-
-  it('flags long pauses at one per two minutes, fillers at two per minute, low coverage under 85%', () => {
-    expect(triggers(facts({ speech: speech({ longPauses: 4 }) }))).not.toContain('long_pauses')
-    expect(triggers(facts({ speech: speech({ longPauses: 5 }) }))).toContain('long_pauses')
-    expect(triggers(facts({ speech: speech({ fillersPerMinute: 2 }) }))).toContain('fillers')
-    expect(triggers(facts({ speech: speech({ coverage: 0.8 }) }))).toContain('low_coverage')
-  })
-
-  it('flags a monotone take from the prosody score', () => {
-    expect(triggers(facts({ prosody: 55 }))).toContain('monotone')
-    expect(triggers(facts({ prosody: 60 }))).not.toContain('monotone')
-  })
-
-  it('reads no speech rules before the take is assessed', () => {
-    expect(triggers(facts({ speech: null }))).toEqual([])
-  })
-
   it('adds the history triggers', () => {
-    const f = facts({ speech: speech({ fillersPerMinute: 3 }) })
-    expect(triggers(f, { ...history, previousTopTrigger: 'fillers' })).toContain('repeat_issue')
-    expect(triggers(f, { ...history, previousTopTrigger: 'pace_fast' })).not.toContain('repeat_issue')
+    const f = facts({ totalSeconds: 800 })
+    expect(triggers(f, { ...history, previousTopTrigger: 'overtime' })).toContain('repeat_issue')
+    expect(triggers(f, { ...history, previousTopTrigger: 'fillers' })).not.toContain('repeat_issue')
     expect(triggers(facts(), { ...history, previousTakes: 0 })).toEqual(['first_run'])
   })
 
-  it('adds many_issues from four measured issues', () => {
-    const f = facts({
-      totalSeconds: 800,
-      speech: speech({ wpm: 175, fillersPerMinute: 4, coverage: 0.7 }),
-    })
-    expect(triggers(f)).toContain('many_issues')
-  })
-
   it('ranks the most severe first', () => {
-    const f = facts({ totalSeconds: 900, speech: speech({ fillersPerMinute: 2 }) })
-    expect(triggers(f)[0]).toBe('overtime')
+    const slides = [{ position: 1, seconds: 95, plannedSeconds: 95, status: 'on-track' }]
+    expect(triggers(facts({ totalSeconds: 900, slides }))).toEqual(['overtime', 'long_intro'])
   })
 })
 

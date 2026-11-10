@@ -441,11 +441,7 @@ enabled = true
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
-[functions.azure-token]
+[functions.ai]
 # The platform check lets the public publishable key through and does not understand the
 # project's ES256 user sessions, so the function authorizes in code (_shared/auth.ts).
-verify_jwt = false
-
-[functions.ai]
-# Same as azure-token: authorized in code (_shared/auth.ts).
 verify_jwt = false

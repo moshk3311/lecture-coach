@@ -12,8 +12,8 @@ import { CATEGORY_LABELS, correctionSpan, SEVERITY_LABELS } from './feedback'
 /** One correction: what was said next to how an American says it, each playable (§5.7). */
 export function CorrectionCard({ index, correction, run }: { index: number; correction: Correction; run: RunDetail }) {
   const span = useMemo(
-    () => correctionSpan(correction, run.word_results, Number(run.duration_sec)),
-    [correction, run.word_results, run.duration_sec],
+    () => correctionSpan(correction, Number(run.duration_sec)),
+    [correction, run.duration_sec],
   )
   const jarring = correction.severity === 'jarring'
 
@@ -70,7 +70,7 @@ function AmericanButton({ text }: { text: string }) {
   return clip.data ? <PlayButton src={clip.data} label={AMERICAN} /> : <Loading label={AMERICAN} />
 }
 
-/** One note when the American voice cannot be made (no Azure keys, quota, network). */
+/** One note when the American voice cannot be made (Gemini quota, network). */
 export function AmericanVoiceNote({ text }: { text: string }) {
   const clip = useReferenceClip(text)
   if (!clip.isError) return null

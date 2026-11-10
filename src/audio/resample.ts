@@ -1,5 +1,5 @@
-// Microphone audio → 16 kHz mono PCM16, the format Azure pronunciation assessment takes
-// (ARCHITECTURE §5.3). Pure, so it runs inside the AudioWorklet and in unit tests alike.
+// Microphone audio → 16 kHz mono PCM16, the take's storage format (a small
+// 16 kHz mono WAV, ARCHITECTURE §5.3). Pure, so it runs inside the AudioWorklet and in unit tests alike.
 
 export const TARGET_RATE = 16_000
 

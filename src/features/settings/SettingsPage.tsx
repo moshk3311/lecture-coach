@@ -5,8 +5,6 @@ import { PageHeader } from '../../components/PageHeader'
 import { stagger } from '../../components/stagger'
 import { buttonStyles, cardStyles, kickerStyles } from '../../components/styles'
 import { useAuth } from '../auth/useAuth'
-import { UsageMeter } from '../runs/UsageMeter'
-import { AzureCheck } from './AzureCheck'
 import { DEFAULT_SETTINGS, useUpdateUserSettings, useUserSettings } from './useUserSettings'
 
 export function SettingsPage() {
@@ -17,7 +15,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader number="05" section="Settings" title="הגדרות" subtitle="החשבון שלך, ברירות המחדל ובדיקת החיבור ל-Azure." />
+      <PageHeader number="02" section="Settings" title="הגדרות" subtitle="החשבון שלך וברירות המחדל." />
 
       <div className="grid gap-5 md:grid-cols-2">
         <section className={`${cardStyles} rise-in p-6`} style={stagger(3)}>
@@ -37,12 +35,6 @@ export function SettingsPage() {
         <section className={`${cardStyles} rise-in p-6`} style={stagger(4)}>
           <h2 className="font-display text-xl font-semibold">ברירות מחדל</h2>
           <dl className="mt-4 divide-y divide-rule">
-            <Row label="קול אמריקאי">
-              <En className="font-mono text-sm">{settings.voice}</En>
-            </Row>
-            <Row label="קצב איטי">
-              <En className="font-mono text-sm">{settings.slow_rate}</En>
-            </Row>
             <Row label="שליחת אודיו ל-Gemini">
               <Switch
                 label="שליחת אודיו ל-Gemini"
@@ -51,24 +43,15 @@ export function SettingsPage() {
                 onChange={(on) => update.mutate({ send_audio_to_llm: on })}
               />
             </Row>
-            <Row label="מכסת Azure לחודש">{settings.azure_minutes_cap} דקות</Row>
           </dl>
           <p className="mt-4 text-sm leading-relaxed text-ink-faint">
             {isError
               ? 'לא הצלחתי לטעון את ההגדרות; מוצגות ברירות המחדל.'
               : update.isError
                 ? 'השמירה נכשלה. בדוק את החיבור ונסה שוב.'
-                : 'בלי אודיו, משוב ה-AI על חזרה מתבסס על המדידות בלבד, בלי תיקונים. עריכת הקול והקצב תגיע עם סטודיו התסריט.'}
+                : 'בלי אודיו, משוב ה-AI על חזרה מתבסס על הזמנים בלבד, בלי תיקונים.'}
           </p>
         </section>
-
-        <div className="rise-in md:col-span-2" style={stagger(5)}>
-          <UsageMeter />
-        </div>
-
-        <div className="rise-in md:col-span-2" style={stagger(6)}>
-          <AzureCheck voice={settings.voice} />
-        </div>
       </div>
     </>
   )

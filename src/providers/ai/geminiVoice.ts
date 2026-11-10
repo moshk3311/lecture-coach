@@ -1,4 +1,4 @@
-import type { ReferenceVoice } from '../speech'
+import type { ReferenceVoice } from '../referenceVoice'
 import { ask } from './ask'
 
 /** Gemini TTS through the `ai` function's `speak` action; the key stays on the server. */

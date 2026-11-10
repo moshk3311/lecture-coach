@@ -4,12 +4,10 @@ import { stagger } from '../../components/stagger'
 import { cardStyles } from '../../components/styles'
 import { formatClock } from '../../lib/format'
 import type { RunTiming } from '../../lib/metrics'
-import { scoreBand } from '../../lib/scoreBands'
 import { useLectureRuns } from './api'
 import { KEEP_RECORDINGS } from './retention'
 
 const dateTime = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-const BAND_TEXT = { good: 'text-good', warn: 'text-warn', bad: 'text-bad' } as const
 
 /** Full-run takes of a lecture, newest first (ARCHITECTURE §5.7 run history). */
 export function RunHistory({ lectureId }: { lectureId: string }) {
@@ -53,14 +51,9 @@ export function RunHistory({ lectureId }: { lectureId: string }) {
                         {onTrack}/{timing.slides.length} שקפים בזמן
                       </span>
                     ) : null}
-                    {run.wpm ? <span dir="ltr">{Math.round(Number(run.wpm))} WPM</span> : null}
                   </p>
                 </div>
-                {run.pron_score !== null ? (
-                  <span className={`font-mono text-lg ${BAND_TEXT[scoreBand(Number(run.pron_score))]}`}>{Math.round(Number(run.pron_score))}</span>
-                ) : (
-                  <span className="text-xs text-ink-faint">{run.audio_path ? 'בלי הערכה' : 'בלי הקלטה'}</span>
-                )}
+                {run.audio_path ? null : <span className="text-xs text-ink-faint">בלי הקלטה</span>}
                 <ChevronLeft size={18} className="shrink-0 text-ink-faint" aria-hidden="true" />
               </Link>
             </li>

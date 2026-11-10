@@ -49,23 +49,12 @@ export function savedTips(metrics: unknown): SelectedTip[] {
 }
 
 /** The numbers of a take the rules read. */
-export function tipFacts(run: Pick<RunDetail, 'metrics' | 'prosody'>): TipFacts {
+export function tipFacts(run: Pick<RunDetail, 'metrics'>): TipFacts {
   const metrics = run.metrics as unknown as RunMetrics
-  const speech = metrics.speech
   return {
     totalSeconds: metrics.totalSeconds,
     targetSeconds: metrics.targetSeconds,
     slides: metrics.slides.map(({ position, seconds, plannedSeconds, status }) => ({ position, seconds, plannedSeconds, status })),
-    speech: speech
-      ? {
-          wpm: speech.wpm,
-          perSlide: speech.perSlide.map(({ position, wpm }) => ({ position, wpm })),
-          fillersPerMinute: speech.fillersPerMinute,
-          longPauses: speech.pauses.long,
-          coverage: speech.coverage.ratio,
-        }
-      : null,
-    prosody: run.prosody === null ? null : Number(run.prosody),
   }
 }
 

@@ -3,7 +3,6 @@
 // catalog; calibrate them on real takes. Pure and unit-tested.
 import { formatClock } from './format'
 import { TIP_TRIGGERS, type TipTrigger } from '../../supabase/functions/ai/contract.ts'
-import { WPM_BAND } from './metrics'
 
 export { TIP_TRIGGERS, type TipTrigger }
 
@@ -35,20 +34,11 @@ export function isTipTrigger(value: unknown): value is TipTrigger {
   return typeof value === 'string' && (TIP_TRIGGERS as readonly string[]).includes(value)
 }
 
-/** The numbers of a take that the rules read (RunMetrics in src/features/runs/api.ts, plus the prosody score). */
+/** The numbers of a take that the rules read (RunMetrics in src/features/runs/api.ts). */
 export type TipFacts = {
   totalSeconds: number
   targetSeconds: number | null
   slides: { position: number; seconds: number; plannedSeconds: number; status: string }[]
-  /** Null until Azure has assessed the take. */
-  speech: {
-    wpm: number | null
-    perSlide: { position: number; wpm: number | null }[]
-    fillersPerMinute: number
-    longPauses: number
-    coverage: number
-  } | null
-  prosody: number | null
 }
 
 /** What earlier takes of the same lecture say. */
@@ -74,17 +64,10 @@ export type Issue = {
 export const CONTEXT_TRIGGERS: readonly TipTrigger[] = ['first_run', 'repeat_issue', 'many_issues']
 
 const cap = (value: number) => Math.min(1, Math.max(0, value))
-const pct = (value: number) => Math.round(value * 100)
 
 export const THRESHOLDS = {
-  paceSlowWpm: 130,
-  fastSlides: 2,
-  longPausesPerTwoMinutes: 1,
-  fillersPerMinute: 2,
-  monotoneProsody: 60,
   overtimeRatio: 0.1,
   slideOverrunSeconds: 15,
-  coverage: 0.85,
   longIntroSeconds: 60,
   manyIssues: 4,
 } as const
@@ -111,32 +94,6 @@ export function detectIssues(facts: TipFacts, history: TipHistory): Issue[] {
   const first = [...facts.slides].sort((a, b) => a.position - b.position)[0]
   if (first && first.seconds > THRESHOLDS.longIntroSeconds) {
     add('long_intro', (first.seconds - THRESHOLDS.longIntroSeconds) / 120, `השקף הראשון ארך ${formatClock(first.seconds)}`, first.position)
-  }
-
-  const { speech } = facts
-  if (speech) {
-    const fastSlides = speech.perSlide.filter((s) => s.wpm !== null && s.wpm > WPM_BAND.max)
-    if ((speech.wpm !== null && speech.wpm > WPM_BAND.max) || fastSlides.length >= THRESHOLDS.fastSlides) {
-      const where = fastSlides.length ? ` (בשקפים ${fastSlides.map((s) => s.position).join(', ')})` : ''
-      const wpm = speech.wpm ?? Math.max(...fastSlides.map((s) => s.wpm ?? 0))
-      add('pace_fast', (wpm - WPM_BAND.max) / 60, `${Math.round(wpm)} מילים לדקה${where}, היעד ${WPM_BAND.min}–${WPM_BAND.max}`, fastSlides[0]?.position ?? null)
-    }
-    if (speech.wpm !== null && speech.wpm < THRESHOLDS.paceSlowWpm) {
-      add('pace_slow', (THRESHOLDS.paceSlowWpm - speech.wpm) / 50, `${Math.round(speech.wpm)} מילים לדקה, היעד ${WPM_BAND.min}–${WPM_BAND.max}`)
-    }
-    const pausesPerTwoMinutes = totalSeconds > 0 ? speech.longPauses / (totalSeconds / 120) : 0
-    if (pausesPerTwoMinutes >= THRESHOLDS.longPausesPerTwoMinutes) {
-      add('long_pauses', pausesPerTwoMinutes / 3, `${speech.longPauses} עצירות ארוכות מ-1.5 שניות`)
-    }
-    if (speech.fillersPerMinute >= THRESHOLDS.fillersPerMinute) {
-      add('fillers', speech.fillersPerMinute / 6, `${speech.fillersPerMinute} מילות מילוי לדקה`)
-    }
-    if (speech.coverage < THRESHOLDS.coverage) {
-      add('low_coverage', (THRESHOLDS.coverage - speech.coverage) / 0.5, `אמרת ${pct(speech.coverage)}% מהתסריט`)
-    }
-  }
-  if (facts.prosody !== null && facts.prosody < THRESHOLDS.monotoneProsody) {
-    add('monotone', (THRESHOLDS.monotoneProsody - facts.prosody) / 40, `ציון הטון והדגשים ${Math.round(facts.prosody)} מתוך 100`)
   }
 
   // Context triggers come last: they depend on what was found above.

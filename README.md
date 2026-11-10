@@ -9,7 +9,7 @@ Spec: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 ## Stack
 
 React + Vite + TypeScript + Tailwind (PWA on GitHub Pages) · Supabase (Postgres, Auth, Storage,
-Edge Functions) · Azure Speech (pronunciation assessment, TTS) · Gemini (coaching).
+Edge Functions) · Gemini (coaching, American voice).
 
 ## Develop
 
@@ -21,4 +21,4 @@ npm run test
 npm run build
 ```
 
-API keys for Azure and Gemini live only in Supabase function secrets, never in the client.
+The Gemini API key lives only in Supabase function secrets, never in the client.

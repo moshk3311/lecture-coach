@@ -24,8 +24,6 @@ import { buttonStyles, kickerStyles } from '../../components/styles'
 import { formatClock } from '../../lib/format'
 import { countWords, joinScript } from '../../lib/script'
 import { useLectureDeck, useSlideImageUrls, useUpdateSlide, type LectureDeck } from '../lectures/api'
-import { useMonthUsage } from '../runs/api'
-import { quotaState } from '../runs/quota'
 import { useScriptSaver, useSlideKeywords } from './api'
 import { scriptFileName, scriptMarkdown } from './exportScript'
 import { useFlash, useNow, useStopwatch, useWakeLock } from './hooks'
@@ -85,8 +83,6 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
   const saver = useScriptSaver(deck.id)
   const take = useTake()
   const recording = take.phase === 'recording' || take.phase === 'starting'
-  const { data: usage } = useMonthUsage()
-  const quota = usage ? quotaState(usage.minutes, usage.cap) : 'ok'
   const updateSlide = useUpdateSlide(deck.id)
   const [editing, setEditing] = useState<EditField | null>(null)
   const [peeking, peek] = useFlash(PEEK_MS)
@@ -136,7 +132,7 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
     if (take.phase === 'recording') {
       take.stop()
       stopwatch.pause()
-    } else if (take.phase === 'idle' && !take.finished && quota !== 'blocked') {
+    } else if (take.phase === 'idle' && !take.finished) {
       take.start(slidePosition)
       stopwatch.restart()
     }
@@ -236,7 +232,7 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
           </span>
           <En className="truncate font-medium">{slide.title || 'Untitled slide'}</En>
         </p>
-        <TakeButton take={take} quota={quota} usage={usage} onToggle={toggleTake} />
+        <TakeButton take={take} onToggle={toggleTake} />
         <TimerPill stopwatch={stopwatch} status={status} />
         <PlanLabel window={windows[index]} />
         <span dir="ltr" className="hidden font-mono text-sm text-ink-soft md:block" title="שעה">
@@ -537,18 +533,7 @@ function KeyHints() {
   )
 }
 
-function TakeButton({
-  take,
-  quota,
-  usage,
-  onToggle,
-}: {
-  take: Take
-  quota: ReturnType<typeof quotaState>
-  usage: { minutes: number; cap: number } | undefined
-  onToggle: () => void
-}) {
-  const usageText = usage ? `נוצלו ${Math.round(usage.minutes)} מתוך ${usage.cap} דקות Azure החודש` : ''
+function TakeButton({ take, onToggle }: { take: Take; onToggle: () => void }) {
   if (take.phase === 'recording' || take.phase === 'stopping') {
     return (
       <button
@@ -571,16 +556,15 @@ function TakeButton({
       </button>
     )
   }
-  const blocked = quota === 'blocked'
   return (
     <button
       type="button"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onToggle}
-      disabled={blocked || take.phase === 'starting' || take.finished !== null}
+      disabled={take.phase === 'starting' || take.finished !== null}
       aria-label="הקלט חזרה (R)"
-      title={blocked ? `נוצלה כמעט כל מכסת Azure החודשית. ${usageText}` : `הקלט חזרה מלאה (R). ${usageText}`}
-      className={`${buttonStyles.secondary} h-10 shrink-0 px-3 text-sm ${quota === 'warn' ? 'border-warn text-warn' : ''}`}
+      title="הקלט חזרה מלאה (R)"
+      className={`${buttonStyles.secondary} h-10 shrink-0 px-3 text-sm`}
     >
       {take.phase === 'starting' ? (
         <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />

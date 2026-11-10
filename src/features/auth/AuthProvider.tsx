@@ -2,7 +2,6 @@ import type { Session } from '@supabase/supabase-js'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabase'
-import { clearAzureToken } from '../../speech/tokenClient'
 import { AuthContext, type AuthState } from './authContext'
 import { authErrorFromUrl } from './authErrors'
 
@@ -36,7 +35,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(next)
       setLoading(false)
       if (event === 'SIGNED_OUT') {
-        clearAzureToken()
         queryClient.clear()
       }
     })

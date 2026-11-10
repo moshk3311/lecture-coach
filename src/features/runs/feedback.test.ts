@@ -41,22 +41,15 @@ describe('savedRunReport', () => {
 })
 
 describe('correctionSpan', () => {
-  const words = ['to', 'put', 'AI', 'into', 'work'].map((word, i) => ({ word, offset_ms: 11_600 + i * 400, duration_ms: 300 }))
-
-  it('anchors the quote to the assessed words', () => {
-    expect(correctionSpan(correction, words, 60)).toEqual({ startMs: 11_450, endMs: 13_650, matched: true })
-  })
-
-  it('uses Gemini times when the take was not assessed or a word has no timing', () => {
-    const untimed = words.map((w) => ({ ...w, offset_ms: null }))
-    expect(correctionSpan(correction, untimed, 60)).toEqual({ startMs: 11_500, endMs: 14_000, matched: false })
+  it('uses Gemini times with a margin', () => {
+    expect(correctionSpan(correction, 60)).toEqual({ startMs: 11_500, endMs: 14_000 })
   })
 
   it('has no span without a time', () => {
-    expect(correctionSpan({ ...correction, approx_start_sec: null, approx_end_sec: null }, words, 60)).toBeNull()
+    expect(correctionSpan({ ...correction, approx_start_sec: null, approx_end_sec: null }, 60)).toBeNull()
   })
 
   it('reads a missing end as the start', () => {
-    expect(correctionSpan({ ...correction, approx_end_sec: null }, [], 60)).toEqual({ startMs: 11_500, endMs: 12_500, matched: false })
+    expect(correctionSpan({ ...correction, approx_end_sec: null }, 60)).toEqual({ startMs: 11_500, endMs: 12_500 })
   })
 })

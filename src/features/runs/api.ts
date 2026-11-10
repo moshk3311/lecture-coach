@@ -8,25 +8,13 @@ import { supabase } from '../../lib/supabase'
 import { recordingsToPrune } from './retention'
 
 export type Attempt = Tables<'attempts'>
-export type WordResult = Tables<'word_results'>
-export type RunMetrics = RunTiming & { speech?: SpeechMetrics }
-
-/** What the assessment adds to a take's metrics (ARCHITECTURE §5.7 run report). */
-export type SpeechMetrics = {
-  wpm: number | null
-  fillers: number
-  fillersPerMinute: number
-  pauses: { short: number; long: number; longestMs: number }
-  coverage: { ratio: number; omitted: string[]; inserted: string[] }
-  perSlide: { position: number; wpm: number | null; words: number }[]
-  weakest: { word: string; accuracy: number }[]
-}
+/** A take's metrics: its timing (the coach tips are saved alongside, see savedTips in tipData.ts). */
+export type RunMetrics = RunTiming
 
 export const runKeys = {
   all: ['runs'] as const,
   lecture: (lectureId: string) => ['runs', 'lecture', lectureId] as const,
   detail: (id: string) => ['runs', id] as const,
-  usage: ['runs', 'usage'] as const,
 }
 
 /** Supabase free plan: 50 MB per upload; a 16 kHz mono WAV grows by 32 kB a second. */
@@ -68,10 +56,7 @@ export function useSaveTake() {
     mutationFn: saveTake,
     onSuccess: (_, { lectureId }) => {
       pruneRecordingsInBackground(queryClient)
-      return Promise.all([
-        queryClient.invalidateQueries({ queryKey: runKeys.lecture(lectureId) }),
-        queryClient.invalidateQueries({ queryKey: runKeys.usage }),
-      ])
+      return queryClient.invalidateQueries({ queryKey: runKeys.lecture(lectureId) })
     },
   })
 }
@@ -125,7 +110,7 @@ export function useLectureRuns(lectureId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('attempts')
-        .select('id, created_at, duration_sec, audio_path, pron_score, accuracy, fluency, prosody, wpm, filler_count, metrics')
+        .select('id, created_at, duration_sec, audio_path, metrics')
         .eq('lecture_id', lectureId)
         .eq('mode', 'full_run')
         .order('created_at', { ascending: false })
@@ -135,7 +120,7 @@ export function useLectureRuns(lectureId: string) {
   })
 }
 
-export type RunDetail = Attempt & { word_results: WordResult[] }
+export type RunDetail = Attempt
 
 export function useRun(attemptId: string) {
   return useQuery({
@@ -143,9 +128,8 @@ export function useRun(attemptId: string) {
     queryFn: async (): Promise<RunDetail | null> => {
       const { data, error } = await supabase
         .from('attempts')
-        .select('*, word_results(*)')
+        .select('*')
         .eq('id', attemptId)
-        .order('position', { referencedTable: 'word_results' })
         .maybeSingle()
       if (error) throw error
       return data
@@ -163,24 +147,6 @@ export function useRecordingUrl(path: string | null | undefined) {
       const { data, error } = await supabase.storage.from('recordings').createSignedUrl(path!, 60 * 60)
       if (error) throw error
       return data.signedUrl
-    },
-  })
-}
-
-export type MonthUsage = { minutes: number; cap: number }
-
-/** Azure audio minutes used this month against the cap in settings (quota guard, §5.3). */
-export function useMonthUsage() {
-  return useQuery({
-    queryKey: runKeys.usage,
-    queryFn: async (): Promise<MonthUsage> => {
-      const [usage, settings] = await Promise.all([
-        supabase.from('v_month_usage').select('minutes').maybeSingle(),
-        supabase.from('user_settings').select('azure_minutes_cap').maybeSingle(),
-      ])
-      if (usage.error) throw usage.error
-      if (settings.error) throw settings.error
-      return { minutes: Number(usage.data?.minutes ?? 0), cap: settings.data?.azure_minutes_cap ?? 300 }
     },
   })
 }
