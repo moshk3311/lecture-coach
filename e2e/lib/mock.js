@@ -1,5 +1,5 @@
 // In-memory Supabase for screenshot checks: auth, PostgREST tables and RPCs, Storage and the
-// azure-token and ai functions, all answered inside the browser. It never touches the real project.
+// ai function, all answered inside the browser. It never touches the real project.
 // REF must match VITE_SUPABASE_URL in .env.local: the app builds its session key from it.
 const crypto = require('crypto')
 const { aiReport, americanizeOf, draftOf, keywordsOf } = require('./ai')
@@ -41,8 +41,7 @@ function uuid() {
 
 /**
  * The mocked database. Scripts read it to check what the app saved, and can set:
- * usageMinutes (Azure minutes used this month, default 12), failSaveAttempt (save_attempt
- * answers 500), loseSaveReply (save_attempt saves, then answers 500), aiFails (a Hebrew
+ * failSaveAttempt (save_attempt answers 500), loseSaveReply (save_attempt saves, then answers 500), aiFails (a Hebrew
  * message the ai function answers with a 503).
  */
 function createDb(seed = {}) {
@@ -53,7 +52,6 @@ function createDb(seed = {}) {
     storage: seed.storage ?? {}, // bucket/path -> { contentType, body }
     attempts: seed.attempts ?? [],
     coachTips: seed.coachTips ?? [],
-    wordResults: seed.wordResults ?? [],
     settings: {
       user_id: USER_ID, voice: 'en-US-AndrewNeural', slow_rate: '-25%', send_audio_to_llm: true, privacy_ack: false,
       azure_minutes_cap: 300, ...seed.settings,
@@ -191,10 +189,6 @@ async function setupMock(page, db, { signedIn = true } = {}) {
       return json(200, p_slides.length)
     }
 
-    if (p === '/functions/v1/azure-token') {
-      return json(500, { message_he: 'בשרת חסרים הסודות AZURE_SPEECH_KEY / AZURE_SPEECH_REGION.' })
-    }
-
     // The ai function answers like Gemini would, after a short wait; run_report saves the report.
     if (p === '/functions/v1/ai' && method === 'POST') {
       const { action, payload = {} } = JSON.parse(body || '{}')
@@ -219,24 +213,16 @@ async function setupMock(page, db, { signedIn = true } = {}) {
       return json(400, { message_he: 'פעולה לא מוכרת.' })
     }
 
-    if (p === '/rest/v1/v_month_usage') {
-      const row = { minutes: db.usageMinutes ?? 12 }
-      return json(200, wantsObject ? row : [row])
-    }
-
     if (p === '/rest/v1/rpc/save_attempt') {
       if (db.failSaveAttempt) return json(500, { message: 'save failed (mock)' })
       const { p: payload } = JSON.parse(body)
-      const { words, ...fields } = payload
+      const fields = payload
       let row = db.attempts.find((a) => a.id === payload.id)
       if (!row) {
         row = { user_id: USER_ID, created_at: new Date().toISOString(), pron_score: null, accuracy: null, fluency: null, completeness: null, prosody: null, wpm: null, filler_count: null, long_pause_count: null, azure_raw: null, ai_feedback: null, recognized_text: null, slide_id: null, sentence_id: null }
         db.attempts.push(row)
       }
       Object.assign(row, fields)
-      if (words) {
-        db.wordResults = db.wordResults.filter((w) => w.attempt_id !== payload.id).concat(words.map((w, i) => ({ id: i, attempt_id: payload.id, position: i + 1, ...w })))
-      }
       if (db.loseSaveReply) return json(500, { message: 'reply lost (mock)' })
       return json(200, payload.id)
     }
@@ -261,9 +247,6 @@ async function setupMock(page, db, { signedIn = true } = {}) {
         (a) => (!id || a.id === id) && (!lectureId || a.lecture_id === lectureId) && (!mode || a.mode === mode) && (!withAudio || a.audio_path !== null),
       )
       rows = rows.sort((a, b) => b.created_at.localeCompare(a.created_at))
-      if ((url.searchParams.get('select') || '').includes('word_results')) {
-        rows = rows.map((a) => ({ ...a, word_results: db.wordResults.filter((w) => w.attempt_id === a.id) }))
-      }
       if (wantsObject) return rows[0] ? json(200, rows[0]) : json(406, { code: 'PGRST116' })
       return json(200, rows)
     }

@@ -3,7 +3,7 @@
 const { APP, DESKTOP, PHONE, PHONE_LANDSCAPE, launch, leftovers, open, overflow, run, shot } = require('./lib/harness')
 const { aiReport } = require('./lib/ai')
 const { createDb } = require('./lib/mock')
-const { assessedFields, basicSeed, seedTake } = require('./lib/seeds')
+const { basicSeed, seedTake } = require('./lib/seeds')
 
 run(async () => {
   const browser = await launch()
@@ -12,8 +12,7 @@ run(async () => {
   const db = basicSeed()
   const id = db.lectureId
   const runId = seedTake(db, 1, id)
-  const assessedId = seedTake(db, 2, id, assessedFields)
-  const aiId = seedTake(db, 3, id, { ...assessedFields, ai_feedback: aiReport() }, { audioSeconds: 20 })
+  const aiId = seedTake(db, 2, id, { ai_feedback: aiReport() }, { audioSeconds: 20 })
   const empty = createDb()
 
   // [name, route, text that shows the screen is ready, options]
@@ -24,10 +23,9 @@ run(async () => {
     ['lecture-new', '/lectures/new', 'צור הרצאה'],
     ['lecture', `/lectures/${id}`, 'חזרות מוקלטות'],
     ['present', `/present/${id}`, '1/3', { viewports: { m: PHONE, ml: PHONE_LANDSCAPE, d: DESKTOP }, fullPage: false }],
-    ['run', `/lectures/${id}/runs/${runId}`, 'הערכת הגייה'],
-    ['run-assessed', `/lectures/${id}/runs/${assessedId}`, 'הגייה ודיבור'],
+    ['run', `/lectures/${id}/runs/${runId}`, 'זמן לכל שקף'],
     ['run-ai', `/lectures/${id}/runs/${aiId}`, 'תיקונים: איך אמריקאים אומרים את זה'],
-    ['settings', '/settings', 'שימוש ב-Azure החודש'],
+    ['settings', '/settings', 'שליחת אודיו ל-Gemini'],
   ]
 
   for (const [name, route, ready, options = {}] of screens) {

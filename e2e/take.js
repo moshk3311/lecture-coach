@@ -1,6 +1,5 @@
 // A full-run take with the fake mic: record from the presenter view, move two slides, stop,
-// then check the saved attempt, the run report, assessment without Azure keys, the run
-// history and the usage meter.
+// then check the saved attempt, the run report and the run history.
 const { APP, DESKTOP, checks, launch, leftovers, open, run, shot } = require('./lib/harness')
 const { basicSeed } = require('./lib/seeds')
 
@@ -31,19 +30,11 @@ run(async () => {
   check(wav?.body.length > 44, `its recording is uploaded (${wav?.body.length ?? 0} bytes)`)
   check(attempt?.metrics.visits.length === 3, `every slide change is timestamped (${attempt?.metrics.visits.length ?? 0} visits)`)
   await shot(page, 'take-report')
-
-  // Without Azure keys the mocked azure-token answers 500 and the report shows the server's message.
-  await page.getByRole('button', { name: 'הרץ הערכה' }).click()
-  await page.getByRole('alert').waitFor({ timeout: 15000 })
-  const message = (await page.getByRole('alert').innerText()).trim()
-  check(message.includes('AZURE_SPEECH_KEY'), `assessment without keys says why: "${message}"`)
+  check(await page.getByText('זמן לכל שקף').isVisible(), 'the report shows the time per slide')
 
   await page.goto(`${APP}/lectures/${id}`)
   await page.getByText('חזרות מוקלטות').waitFor()
   await shot(page, 'take-history')
-  await page.goto(`${APP}/settings`)
-  await page.getByText('שימוש ב-Azure החודש').waitFor()
-  await shot(page, 'take-settings')
 
   await ctx.close()
   await browser.close()

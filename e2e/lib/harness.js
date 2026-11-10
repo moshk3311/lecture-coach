@@ -27,7 +27,7 @@ async function open(browser, db, viewport, errors, { signedIn = true, ...context
   const ctx = await browser.newContext({ viewport, locale: 'he-IL', reducedMotion: 'reduce', permissions: ['microphone'], ...context })
   const page = await ctx.newPage()
   page.on('pageerror', (e) => errors.push(e.message))
-  // Failed loads are expected: the mocked azure-token answers 500 (no Azure keys).
+  // Failed loads are expected (a mocked function answering 5xx).
   page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text()))
   page.on('dialog', (d) => d.accept())
   await setupMock(page, db, { signedIn })

@@ -1,7 +1,7 @@
 // Coach tips in the run report (ARCHITECTURE §5.8), on a made-up catalog: the rule-based tips with
 // their evidence, saved with the take, rotated away on the next take, and a phone layout check.
 const { APP, DESKTOP, PHONE, checks, launch, leftovers, open, overflow, run, shot, until } = require('./lib/harness')
-const { assessedFields, basicSeed, seedTake } = require('./lib/seeds')
+const { basicSeed, seedTake } = require('./lib/seeds')
 
 const patches = (db) => db.log.filter((line) => line.startsWith('PATCH /rest/v1/attempts')).length
 const slugsOf = (db, id) => (db.attempts.find((a) => a.id === id).metrics.tips ?? []).map((t) => t.slug)
@@ -13,7 +13,7 @@ run(async () => {
   const db = basicSeed()
   const id = db.lectureId
   const first = seedTake(db, 1, id)
-  const second = seedTake(db, 2, id, assessedFields)
+  const second = seedTake(db, 2, id)
   const cards = (page) => page.locator('section', { has: page.getByRole('heading', { name: 'טיפים לחזרה הבאה' }) }).locator('ol > li')
   const { ctx, page } = await open(browser, db, DESKTOP, errors)
 
@@ -60,18 +60,7 @@ run(async () => {
   check(await page.getByText('גם בחזרה הקודמת הנושא המרכזי היה: שקף שחרג מהחלון').isVisible(), 'the repeated issue is named')
   await ctx.close()
 
-  // 4. A take with fast speech gets the pace tip, with the measurement behind it.
-  {
-    const solo = basicSeed()
-    const assessed = seedTake(solo, 1, solo.lectureId, assessedFields)
-    const { ctx: fast, page: fastPage } = await open(browser, solo, DESKTOP, errors)
-    await fastPage.goto(`${APP}/lectures/${solo.lectureId}/runs/${assessed}`)
-    await fastPage.getByText('171 מילים לדקה', { exact: false }).first().waitFor()
-    check(true, 'a fast take shows its words per minute as evidence')
-    await fast.close()
-  }
-
-  // 5. The tips on a phone.
+  // 4. The tips on a phone.
   {
     const { ctx: phone, page: mobile } = await open(browser, db, PHONE, errors)
     await mobile.goto(`${APP}/lectures/${id}/runs/${first}`)
@@ -83,7 +72,7 @@ run(async () => {
     await phone.close()
   }
 
-  // 6. Without a catalog the report ends without the section.
+  // 5. Without a catalog the report ends without the section.
   {
     const bare = basicSeed()
     bare.coachTips = []

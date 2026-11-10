@@ -41,20 +41,6 @@ const timing = {
   })),
 }
 
-/** What an assessment adds (SpeechMetrics in src/features/runs/api.ts). */
-const assessedFields = {
-  pron_score: 82.4, accuracy: 79, fluency: 88, completeness: 93, prosody: 71, wpm: 171, filler_count: 6, long_pause_count: 2,
-  metrics: {
-    ...timing,
-    speech: {
-      wpm: 171, fillers: 6, fillersPerMinute: 1.2, pauses: { short: 12, long: 2, longestMs: 2400 },
-      coverage: { ratio: 0.91, omitted: ['the', 'granulation'], inserted: ['um'] },
-      perSlide: [{ position: 1, wpm: 171, words: 1700 }, { position: 2, wpm: null, words: 0 }, { position: 3, wpm: null, words: 0 }],
-      weakest: [{ word: 'phosphate', accuracy: 41 }, { word: 'granulation', accuracy: 55 }, { word: 'throughput', accuracy: 63 }],
-    },
-  },
-}
-
 /** A 16 kHz mono WAV of `seconds` with a quiet 220 Hz tone, so clips cut from it play. */
 function wavBody(seconds) {
   const samples = Math.round(seconds * 16000)
@@ -93,4 +79,4 @@ function seedTake(db, n, lectureId, fields = {}, { audioSeconds = 0 } = {}) {
   return id
 }
 
-module.exports = { LECTURE_ID, basicSeed, seedTake, assessedFields, timing, wavBody }
+module.exports = { LECTURE_ID, basicSeed, seedTake, timing, wavBody }
