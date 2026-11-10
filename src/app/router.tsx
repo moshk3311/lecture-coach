@@ -1,9 +1,6 @@
 import { Navigate, createHashRouter } from 'react-router'
 import { LoginPage } from '../features/auth/LoginPage'
 import { LecturesPage } from '../features/lectures/LecturesPage'
-import { PracticePage } from '../features/practice/PracticePage'
-import { PresentPage } from '../features/present/PresentPage'
-import { ProgressPage } from '../features/progress/ProgressPage'
 import { AppLayout } from './AppLayout'
 import { RequireAuth } from './RequireAuth'
 
@@ -35,9 +32,6 @@ export const router = createHashRouter([
             path: 'lectures/:id/runs/:runId',
             lazy: async () => ({ Component: (await import('../features/runs/RunReportPage')).RunReportPage }),
           },
-          { path: 'practice', element: <PracticePage /> },
-          { path: 'present', element: <PresentPage /> },
-          { path: 'progress', element: <ProgressPage /> },
           {
             path: 'settings',
             lazy: async () => ({ Component: (await import('../features/settings/SettingsPage')).SettingsPage }),

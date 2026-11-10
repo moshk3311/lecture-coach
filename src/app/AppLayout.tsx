@@ -68,7 +68,7 @@ function BottomNav() {
       aria-label="ניווט ראשי"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-rule bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-2">
         {NAV_ITEMS.map((item) => (
           <li key={item.to}>
             <Link

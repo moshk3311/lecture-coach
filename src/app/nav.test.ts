@@ -17,8 +17,8 @@ describe('isNavItemActive', () => {
   })
 
   it('matches a section and its sub-pages', () => {
-    expect(isNavItemActive(item('/present'), '/present')).toBe(true)
-    expect(isNavItemActive(item('/present'), '/present/abc')).toBe(true)
-    expect(isNavItemActive(item('/present'), '/practice')).toBe(false)
+    expect(isNavItemActive(item('/settings'), '/settings')).toBe(true)
+    expect(isNavItemActive(item('/settings'), '/settings/abc')).toBe(true)
+    expect(isNavItemActive(item('/settings'), '/lectures/abc')).toBe(false)
   })
 })

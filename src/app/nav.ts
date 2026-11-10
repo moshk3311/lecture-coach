@@ -1,4 +1,4 @@
-import { ChartLine, Mic, NotebookPen, Presentation, Settings, type LucideIcon } from 'lucide-react'
+import { NotebookPen, Settings, type LucideIcon } from 'lucide-react'
 
 export type NavItem = {
   to: string
@@ -19,8 +19,5 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
 
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'הרצאות', number: '01', icon: NotebookPen, prefixes: ['/lectures'] },
-  { to: '/practice', label: 'תרגול', number: '02', icon: Mic },
-  { to: '/present', label: 'הצגה', number: '03', icon: Presentation },
-  { to: '/progress', label: 'התקדמות', number: '04', icon: ChartLine },
-  { to: '/settings', label: 'הגדרות', number: '05', icon: Settings },
+  { to: '/settings', label: 'הגדרות', number: '02', icon: Settings },
 ]

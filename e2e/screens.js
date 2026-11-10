@@ -23,13 +23,10 @@ run(async () => {
     ['lectures', '/', '2 הרצאות'],
     ['lecture-new', '/lectures/new', 'צור הרצאה'],
     ['lecture', `/lectures/${id}`, 'חזרות מוקלטות'],
-    ['present-picker', '/present', 'Fertilizer Plants'],
     ['present', `/present/${id}`, '1/3', { viewports: { m: PHONE, ml: PHONE_LANDSCAPE, d: DESKTOP }, fullPage: false }],
     ['run', `/lectures/${id}/runs/${runId}`, 'הערכת הגייה'],
     ['run-assessed', `/lectures/${id}/runs/${assessedId}`, 'הגייה ודיבור'],
     ['run-ai', `/lectures/${id}/runs/${aiId}`, 'תיקונים: איך אמריקאים אומרים את זה'],
-    ['practice', '/practice', 'תרגול ממוקד'],
-    ['progress', '/progress', 'לוח התקדמות'],
     ['settings', '/settings', 'שימוש ב-Azure החודש'],
   ]
 
