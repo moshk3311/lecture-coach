@@ -1,8 +1,8 @@
 # Lecture Coach
 
-A personal PWA for practicing English lectures: co-write the script, hear American reference audio,
-record yourself, get word- and phoneme-level pronunciation feedback, and rehearse with slides and
-script side by side. Hebrew UI, English content.
+A personal PWA for preparing an English lecture: rehearse with slides and script side by side,
+then record a full take and get AI feedback on delivery and on what sounds off to an American ear.
+Hebrew UI, English content.
 
 Spec: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 

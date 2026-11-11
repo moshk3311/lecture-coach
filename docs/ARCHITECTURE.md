@@ -1,27 +1,24 @@
-# Lecture Coach — Architecture & Build Spec
+# Lecture Coach — Architecture
 
-Version 1.0 · September 2026
+Version 2.0 (lean) · November 2026
 
-A personal app for improving English lecturing skills over time: co-write the script with AI, get American reference audio, record yourself, receive precise pronunciation and delivery feedback, track progress, and rehearse with slides + script side by side.
+A personal app for one person who is preparing to give a lecture in English. It does two jobs: rehearse in front of the slides, and record a full take and get AI feedback on it. This document describes only what exists in the code. The earlier, much larger plan is archived in `docs/ARCHITECTURE-v1-full.md` (code: git tag `full-scope-v1`); see §12.
 
 ---
 
 ## 1. Context & Goals
 
-**User:** one person, Hebrew-native, presents technical topics in English. Practices on desktop and phone.
+**User:** one person, Hebrew-native, presents technical topics in English. Rehearses on desktop and phone.
 
 | # | Goal |
 |---|------|
-| G1 | Co-write lecture scripts in natural, spoken American English (from PowerPoint slides + the user's intent). |
-| G2 | Measure pronunciation precisely (word + phoneme level, fluency, prosody) after every recording. |
-| G3 | Provide American reference audio (normal + slow) for every sentence. |
-| G4 | Track progress over time; surface recurring weak words and sounds for targeted practice. |
-| G5 | Rehearse the full talk: slides left, script right, memorization support, delivery report (time, pace, fillers, pauses, tone). |
-| G6 | Coach stage delivery: after each full take, 2–3 tips for the next take, grounded in the owner's NotebookLM notebook. |
+| G1 | **Rehearse** in front of the slides: slide, script, a timer with planned windows per slide, memorization levels. |
+| G2 | **Record a full take** and get a run report: time per slide against the plan, the recording, Gemini's delivery feedback and "Corrections" (what sounds off to an American ear), coach tips. |
+| G3 | Script help that already works: a draft per slide ("✎ הצע מלל"), an "Americanize" pass ("תקן לאמריקאית"), and word / speaking-time estimates per slide. These are not extended. |
 
-**Non-goals:** multiple users · real-time feedback while speaking (feedback comes after each recording) · editing PowerPoint files · video / body-language analysis.
+**Non-goals:** multiple users · feedback while speaking (it comes after the take) · editing PowerPoint files · video or body-language analysis · pronunciation scoring · per-sentence practice and progress tracking (cut, §12).
 
-**Constraints:** zero running cost (free tiers only) · single user · PowerPoint (.pptx) input · Hebrew UI, English content · feedback language mixed (explanations in Hebrew, words/examples/drills in English).
+**Constraints:** zero running cost (free tiers only; nothing is ever enabled that can bill) · single user · input is a PPTX plus a PDF export of the same deck · Hebrew RTL UI, all English content wrapped in `dir="ltr" lang="en"`.
 
 ---
 
@@ -29,653 +26,246 @@ A personal app for improving English lecturing skills over time: co-write the sc
 
 | Area | Choice | Why | Trade-off |
 |------|--------|-----|-----------|
-| Pronunciation scoring | Azure Speech — Pronunciation Assessment, **Free F0** | Dedicated scoring model: word + phoneme accuracy, fluency, completeness, prosody, miscues. F0 never bills — it throttles when the quota is used up. | Azure signup needs a card for verification. 5 audio hours/month, 1 concurrent request. |
-| Reference audio | Azure Neural TTS (F0), generated client-side with the Speech SDK | Same account; en-US neural voices; SSML rate control; word-boundary events for highlighting. | 0.5M characters/month → must cache. |
-| LLM (script, coaching) | Gemini API, free tier | Free; understands audio natively (tone feedback). | Rate limits. Free-tier data may be used by Google to improve products → no confidential material. Model names change → env var. |
-| "Sounds off to an American ear" detection | Gemini **listens to the raw audio**, not the transcript | Transcription can silently "fix" errors; listening catches phrasing, grammar, pronunciation and intonation as a US listener hears them. | Gemini timestamps are approximate → anchored to Azure word timings. Audio is sent to Google (free tier). |
-| Backend | Supabase (Postgres, Auth, Storage, Edge Functions) | Familiar; keeps API keys server-side; RLS. | Free-tier caps (projects, storage, inactivity pausing). |
-| Frontend hosting | GitHub Pages | Free, familiar. | SPA routing → use `HashRouter`. |
-| Slide images (Sprint 1) | The owner uploads a PDF export of the deck; PDF.js renders it in the browser | No server, no cost; PowerPoint's own PDF is the most faithful rendering. | One extra export step per deck. A LibreOffice converter on a VPS was considered and dropped (Sprint 1). |
-| Feedback timing | After each recording | Simpler, more accurate, cheaper than streaming analysis. | No live cues while speaking. |
-| Provider abstraction | `SpeechProvider` / `LlmProvider` interfaces | Swap Gemini → Claude API (or Azure → self-hosted) later without rewrites. | Slight upfront structure. |
-| Coach tips source | The owner's NotebookLM notebook, imported by Claude on request into a private `coach_tips` table | Tips come from talks the owner chose; rules pick them from measured data, so they show even when Gemini fails. | The app cannot read NotebookLM → catalog updates are manual. Tip content stays in the DB, not in this public repo. |
+| LLM | Gemini API, free tier, through the `ai` Edge Function | Free; understands audio natively. | Rate limits. Free-tier data may be used by Google, so no confidential material. The model name is a secret (`GEMINI_MODEL`), since names change. |
+| What Gemini listens to | The raw recording, not a transcript | A transcript can silently "fix" errors; listening catches phrasing, grammar, pronunciation and intonation as a US listener hears them. | Gemini's timestamps are approximate. Audio is sent to Google (the owner can turn this off, §8). |
+| Pronunciation scoring | **None. Azure was dropped.** | Signup was blocked (2026-10-01) and the owner cut the scope. | No measured pace, pauses, fillers or pronunciation scores. Gemini reports what it hears, in words, without numbers. |
+| Backend | Supabase (Postgres, Auth, Storage, Edge Functions) | Keeps the API key server-side; RLS. | Free-tier caps (§9). |
+| Hosting | GitHub Pages, `HashRouter` | Free. Pages serves one `index.html`, so routes live in the hash. | None that matter. |
+| Slide images | The owner uploads a PDF export of the deck; PDF.js renders it in the browser | No server, no cost; the PDF is the most faithful rendering. | One extra export step per deck. |
+| Feedback timing | After the take, never live | Simpler, more accurate, cheaper. | No live cues while speaking. |
+| Provider interfaces | `LlmProvider` and `ReferenceVoice` in `src/providers/` | The app never calls Gemini directly; swapping the model happens behind the `ai` function. | Slight upfront structure. |
+| Coach tips | From the owner's NotebookLM notebook, imported by Claude on request into the private `coach_tips` table | Tips come from talks the owner chose; rules pick them from measured times, so they show even when Gemini fails. | The app cannot read NotebookLM, so catalog updates are manual. Tip content lives only in the DB, never in this public repo. |
+| American voice | Gemini TTS (`speak` action), cached in Storage | Same Gemini account, no extra service. | No word timings and no speed control; "slightly slow" is asked for in the prompt. |
 
 ---
 
 ## 3. System Overview
 
 ```
-┌──────────────── PWA (React + Vite + TS, GitHub Pages) ─────────────────┐
-│  Script Studio │ Practice │ Present │ Progress │ Settings               │
-│                                                                         │
-│  Mic → AudioWorklet → PCM16 / 16 kHz / mono                            │
-│          ├──► Azure Speech SDK (pronunciation assessment, WebSocket)   │
-│          └──► WAV blob ──► Supabase Storage                            │
-│  Azure Speech SDK (TTS) ──► reference MP3 ──► Supabase Storage (cache) │
-└────────┬──────────────────────────────┬────────────────────────────────┘
-         │ supabase-js (user JWT)       │ short-lived Azure token (10 min)
-┌────────▼──────────────── Supabase ────▼────────────────────────────────┐
-│ Postgres + RLS │ Storage (private) │ Auth (magic link)                  │
-│ Edge Functions: azure-token · ai                                        │
-└────────┬──────────────────┬───────────────────────────────────────────┘
-         ▼                  ▼
-   Azure Speech        Gemini API
-   (token endpoint)    (text + audio)
+┌──────────── PWA (React + Vite + TS, GitHub Pages) ─────────────┐
+│  Lectures │ Lecture page │ Presenter view │ Run report │ Settings │
+│                                                                 │
+│  Mic → AudioWorklet → PCM16 / 16 kHz / mono ──► WAV blob        │
+│  PDF.js: PDF export → slide images                              │
+└───────┬─────────────────────────────────────────────────────────┘
+        │ supabase-js (user JWT)
+┌───────▼──────────────────── Supabase ───────────────────────────┐
+│ Postgres + RLS │ Storage (private) │ Auth (email link / code)    │
+│ Edge Function: ai (action router)                                │
+└───────┬─────────────────────────────────────────────────────────┘
+        ▼
+   Gemini API (text, image, audio via Files API, TTS)
 ```
 
-**Core loop (after each recording):**
-1. Browser records → Azure returns scores per word/phoneme.
-2. Browser computes derived metrics (WPM, pauses, fillers).
-3. Audio + attempt + word results saved (one RPC).
-4. `ai` function sends a compact summary to Gemini → structured feedback JSON.
-5. UI shows colored words + scores immediately; AI feedback card appears when ready.
+**Core loop of a take:**
+1. In the presenter view, "Record take" (or `R`) starts the timer and the recording together; every slide change is timestamped on the audio clock.
+2. Stop ends the take. The WAV is uploaded and saved with its timing (one `save_attempt` call). The run report opens at once.
+3. The app picks the rule-based coach tips from the take's times and the lecture's history, and saves them with the take.
+4. After the one-time privacy notice, "בקש משוב" calls `run_report`: the function sends the recording and the facts to Gemini and saves the checked report in `attempts.ai_feedback`.
+5. The page merges Gemini's tip anchors into the rule tips. A Gemini failure never hides what the app already shows.
 
 ---
 
 ## 4. Tech Stack
 
-**Frontend:** React, Vite, TypeScript (strict), Tailwind CSS, React Router (`HashRouter`), TanStack Query, Zustand (recording/session state), Recharts, JSZip (PPTX parsing), `microsoft-cognitiveservices-speech-sdk`, `vite-plugin-pwa`, `@supabase/supabase-js`, Vitest.
+**Frontend:** React 19, Vite 8, TypeScript 6 (strict), Tailwind CSS 4, React Router 8 (`createHashRouter`), TanStack Query, JSZip (PPTX parsing), PDF.js (`pdfjs-dist`, legacy build), `lucide-react`, `vite-plugin-pwa`, `@supabase/supabase-js`. Fonts: Frank Ruhl Libre, IBM Plex Sans / Sans Hebrew / Mono.
 
-**Backend:** Supabase Edge Functions (Deno/TypeScript), Postgres, Storage, Auth (email magic link, single user).
+**Tooling:** Vitest (jsdom), oxlint, Node 24, Supabase CLI as a dev dependency. GitHub Actions: `ci.yml` (typecheck, lint, test, build on pull requests), `deploy.yml` (test, lint, build, publish to Pages on push to `main`), `keep-supabase-awake.yml` (§9).
 
-Pin exact versions in Sprint 0 (check current stable releases).
+**Backend:** one Supabase Edge Function (Deno/TypeScript), Postgres, Storage, Auth (email magic link plus 6-digit code, single user).
 
 ---
 
 ## 5. Functional Modules
 
-### 5.1 Lecture & Script Studio
-- **Create lecture:** title, audience, target duration (minutes), optional `.pptx`.
-- **PPTX import (client-side, JSZip):**
-  - Slide order from `ppt/presentation.xml` + `ppt/_rels/presentation.xml.rels`.
-  - Slide text: all `<a:t>` runs in `ppt/slides/slideN.xml` (first title placeholder → slide title).
-  - Speaker notes: `ppt/notesSlides/notesSlideN.xml` (resolve via slide rels).
-  - Hidden slides (`show="0"`) are skipped. Decks built without placeholders get the short text in the largest font (topmost on a tie) as title. Footers repeated on most slides and bare slide numbers are dropped from the slide text.
-  - The speaker notes become each slide's first script, split into sentences (`import_slides` RPC, one transaction).
-- **Intent notes per slide:** what the user wants to say, in Hebrew or English.
-- **AI script drafting ("✎ הצע מלל", Sprint 3):** per slide, from the slide's picture (when the deck has images) + text + speaker notes + the speaker's intent + the slide's time budget + the scripts of the slides before it and the title of the next → spoken American English script, a bridge sentence into the next slide, and Hebrew notes on the choices. It is a proposal: the lecture page shows it next to the current script and the owner accepts it or not. "Draft every slide without a script" fills the empty slides one after another (they are saved at once, since nothing is replaced, and marked for review). The picture goes to Gemini as an inline image; Gemini reads a PPTX as plain text only, so images need the PDF export.
-- **Discussion chat:** per lecture, optionally scoped to a slide. User may write in Hebrew. AI can return a `proposed_edit` the user accepts or rejects.
-- **"Americanize" action** on any text: revised text + list of changes with Hebrew reasons (shown as a diff).
-- **Segmentation:** each slide's script split into sentences = practice units. Editable on the lecture page ("משפטים" per slide): split before a tapped word, merge with the next, move up/down, start a paragraph; words and speaking time per sentence, over 20 words flagged "long to practice". Saved only on "save"; a split keeps the id on its first part, a merge on the first sentence (the RPC clears audio when the text changed). Later edits keep this segmentation: `resegment` keeps every run of stored sentences still in a line word for word, at splitScript boundaries, and splits only the rest.
-- **Estimates:** word count and speaking time per slide at 140 WPM next to its planned time, flagged when more than 15% over (red) or more than 15% and 10 s under (amber); the lecture's total speaking time next to its target.
+### 5.1 Lectures & import
+- **Lectures page** lists lectures; "new lecture" takes title, audience, target duration (minutes) and the deck. A lecture can be deleted for good (slides, scripts, images and recordings go with it).
+- **PPTX import (client-side, JSZip):** slide order from `ppt/presentation.xml` and its rels; slide text from the `<a:t>` runs; speaker notes from `ppt/notesSlides`. Hidden slides are skipped. Decks without placeholders get the short text in the largest font as title; footers repeated on most slides and bare slide numbers are dropped. Speaker notes become each slide's first script, split into sentences. Saved in one transaction by the `import_slides` RPC. The original file goes to the `pptx` bucket.
+- **Slide images:** the owner adds a PDF export; PDF.js (legacy build, §9) renders page n as slide n at 1600 px width, as WebP where the browser encodes it, else PNG, into the `slides` bucket. A re-render uses a new file name (no stale cache) and removes the old files. Without images the presenter shows the slide title and text.
+- **Planned time:** each slide may carry a manual `planned_seconds` (set on the lecture page as m:ss); otherwise it is computed (§5.3).
 
-### 5.2 Reference Audio
-- **Plan B (2026-10-04, Azure signup blocked):** correction phrases (▶ American, §5.7) are made by Gemini TTS (`gemini-3.8-flash-tts`, voice `Kore`, Interactions API) in the `ai` function's `speak` action and cached as `.wav` (24 kHz) in `reference-audio`. No word timings and no SSML rate: the slow style is asked for in the prompt. Free tier only: a spent quota answers 429, nothing is charged without a billing account. The bullets below describe the Azure variant, used for script sentences (Sprint 3) if Azure becomes available.
-- Generated **in the browser** with the Speech SDK `SpeechSynthesizer` (token auth, `audioConfig = null` → `result.audioData`), then uploaded to Storage.
-- Two variants per sentence: normal and slow (SSML `<prosody rate="-25%">`), generated on demand.
-- Cache key: `sha256(text | voice | rate)` → skip synthesis if the file exists.
-- Capture `wordBoundary` events → `sentences.ref_word_timings` → highlight words during playback.
-- Single-word references (for the "compare" sheet) and correction phrases (§5.7) use the same cache.
-- Default voice set in settings (e.g. `en-US-AndrewNeural`; verify availability in the chosen region).
+### 5.2 Script help (not extended)
+- **Script storage:** a slide's script is its `sentences` rows (text, position, `starts_paragraph`). Saving a script re-splits it into sentences (`splitScript` / `resegment` in `src/lib/script.ts`) and calls `save_slide_script`; unchanged sentences keep their ids.
+- **Draft ("✎ הצע מלל"):** per slide, the `draft_script` action takes the slide picture (when the deck has images), its text and speaker notes, the speaker's intent notes (Hebrew or English), the slide's time budget and the neighbouring slides, and returns spoken American English, a bridge sentence into the next slide and Hebrew notes. It is a proposal shown next to the current script; the owner accepts or refuses. "Draft every slide without a script" fills empty slides one after another and marks them for review.
+- **Americanize ("תקן לאמריקאית"):** per slide with a script, the `americanize` action returns a revised script and bridge sentence plus a list of changes, each with a Hebrew reason. Shown as a word diff (`src/lib/wordDiff.ts`); accepted or refused. Nothing is saved until accepted, and the change notes are not stored.
+- **Estimates:** on the lecture page, words and speaking time per slide at 140 WPM next to the planned time (red when more than 15% over, amber when more than 15% and 10 s under), and the total against the lecture's target.
 
-### 5.3 Recording & Assessment (core)
-**Capture**
-- `getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })` — test with noise suppression on/off in Sprint 2 and keep what scores more consistently.
-- AudioWorklet downsamples to 16 kHz PCM16 mono and feeds two sinks:
-  - Speech SDK `PushAudioInputStream` with `AudioStreamFormat.getWaveFormatPCM(16000, 16, 1)`.
-  - WAV encoder for playback and storage.
-- iOS: start the `AudioContext` inside the record-button tap handler.
+### 5.3 Presenter view
+Full screen at `/present/:lectureId`, outside the app shell. It is opened from the lecture page.
 
-**Assessment config (Speech SDK, `en-US`)**
-```ts
-const pa = new sdk.PronunciationAssessmentConfig(
-  referenceText,
-  sdk.PronunciationAssessmentGradingSystem.HundredMark,
-  sdk.PronunciationAssessmentGranularity.Phoneme,
-  true // enableMiscue
-);
-pa.enableProsodyAssessment = true;
-pa.phonemeAlphabet = "IPA";
-pa.nbestPhonemeCount = 5; // "what was actually said" per phoneme
-```
-- Sentence mode (≤ ~30 s): `recognizeOnceAsync`.
-- Slide / full-run mode: continuous recognition; aggregate all segment results.
+**Layout.** Wide screens and landscape: the current slide on one side, and next-slide thumbnail, script and "Before you click" line on the other. Phone portrait: slide on top, script below; swipe left/right (at least 60 px, mostly horizontal) changes slide. The header shows slide counter and title, the "Record take" button, the timer and the planned window of the current slide.
 
-**Result mapping**
-- Utterance: `PronScore`, `AccuracyScore`, `FluencyScore`, `CompletenessScore`, `ProsodyScore`.
-- Words: `Word`, `Offset`, `Duration` (100-ns ticks → ms), `AccuracyScore`, `ErrorType` (`None | Mispronunciation | Omission | Insertion | UnexpectedBreak | MissingBreak | Monotone`), `Phonemes[]` with `AccuracyScore` and `NBestPhonemes`.
-- Keep the raw JSON in `attempts.azure_raw` for re-analysis.
+**Timer & planned windows** (`src/features/present/plan.ts`):
+- A slide's planned time is its manual `planned_seconds`, else its script words at 140 WPM (at least 10 s). When the lecture has a target duration, the computed slides are scaled so the total fills it; manual slides stay as set.
+- Each slide's window is the cumulative start–end. The timer is blue ahead of the window, green inside it, amber up to 15 s past the end, then red.
 
-**Derived metrics (pure functions, unit-tested)**
-- WPM = spoken words ÷ (last word end − first word start) × 60.
-- Pauses: gaps > 0.5 s (short) and > 1.5 s (long) → counts + longest.
-- Fillers: `um, uh, er, ah, like, you know` — from insertions + recognized text. **Verify in Sprint 2 how Azure reports disfluencies.**
-- Color bands: ≥ 85 green · 60–84 amber · < 60 red.
+**Inline editing.** Click the script (or `E`) to edit it; autosave 1.2 s after typing stops; `Esc` or a click outside closes. The "Before you click" line is editable the same way. "Revert slide" restores the script as it was when the view opened. "Export script" downloads a Markdown file with every slide's title, script and bridge line.
 
-**Persistence:** upload WAV → `recordings/{user_id}/{attempt_id}.wav`; then `save_attempt` RPC inserts the attempt, word results and updates weak items in one transaction.
+**Keyboard & clicker.** `→` / Space / PgDn next · `←` / PgUp back · Home / End first / last · `T` timer start/pause · `R` start/stop take · `M` cycle memorization level · `P` peek · `E` edit · `Esc` ends editing, or ends a running take. Letters use the physical key, so they work with a Hebrew layout. Clickers send PgDn / PgUp.
 
-**Quota guard:** before recording, read `v_month_usage`. Warn at 80% of the monthly Azure minutes, block at 98% with a clear message. Queue requests (F0 allows 1 concurrent).
+**Memorization levels** (per slide, remembered in `slides.memo_level`): L0 full text · L1 every third word blanked · L2 first letters only · L3 keywords only · L4 no script. "Peek" shows the full text briefly. L3 keywords (up to 6) come from the `keywords` action, are saved in `slides.keywords`, and are asked for again when an edit removes one of them. A slide without a script skips L3.
 
-### 5.4 AI Feedback (after each recording)
-**Input to Gemini** (`ai` function, action `feedback`): reference text, recognized text, utterance scores, the worst ≤ 8 words with phoneme details (expected phoneme + top N-best = what was heard), prosody flags, derived metrics, the user's top 5 weak sounds. For slide/full-run modes optionally attach compressed audio for tone/energy/intonation comments.
+### 5.4 Take recording
+- `getUserMedia` (mono, echo cancellation, noise suppression) into an AudioWorklet that produces 16 kHz PCM16 mono; the data becomes a WAV (`src/audio/`). The AudioContext starts inside the tap or key handler, as iOS requires.
+- Every slide change is marked on the audio clock. The marks become visits and per-slide times (`src/lib/metrics.ts`).
+- A take stops by itself just under the 50 MB upload limit (16 kHz mono WAV grows 32 kB per second; the cap is 1608 s, 26:48).
+- **Saving:** upload to `recordings/{user_id}/{attempt_id}.wav`, then `save_attempt` (mode `full_run`, reference text = the concatenated script, `duration_sec`, `metrics` = the timing). A failed save deletes the uploaded file.
+- **Retention:** after each saved take (and when a lecture is deleted) the app keeps the recordings of the newest 10 takes of existing lectures and deletes the rest. Reports and times stay (`audio_path = null`). Files are deleted before rows are cleared, so an interrupted cleanup finishes on the next take.
 
-**Output (structured JSON via `responseSchema`):**
-```json
-{
-  "summary_he": "2–3 sentences",
-  "score_comment_he": "string",
-  "issues": [
-    {
-      "word": "theory",
-      "type": "phoneme | stress | linking | omission | pace | tone",
-      "explanation_he": "string",
-      "tip_he": "string",
-      "say_it_like_en": "THEE-uh-ree",
-      "ipa": "ˈθiːəri"
-    }
-  ],
-  "drill_en": ["Three thin thinkers thought through the theory."],
-  "next_step_he": "string"
-}
-```
-- **Language rule:** explanations in Hebrew; words, respellings, examples and drills in English (rendered LTR).
-- **Ground truth:** Gemini explains Azure's findings; it must not invent errors absent from the data. Max 3 issues, ordered by impact on intelligibility.
-- **Failure mode:** on error/429 show Azure results anyway + "Retry feedback" button.
+### 5.5 Run report
+A page per take (`/lectures/:id/runs/:runId`), also listed in the lecture's run history. From top to bottom:
+1. **Tiles:** total time against the target (green within 10%, amber, red beyond 20%) and the number of slides on track.
+2. **Recording:** an audio player, or a note that the recording was deleted by retention.
+3. **Time per slide:** actual against planned, with a status: on track (within ±20% of plan, at least ±10 s), long, short, or skipped.
+4. **AI feedback & Corrections** (§5.6).
+5. **Tips for the next take** (§5.7).
 
-### 5.5 Practice UX
-- **Sentence card:** English text · ▶ reference (normal / slow) · ● record · results.
-- **Results:** colored words + score chips (Pronunciation, Accuracy, Fluency, Prosody).
-- **Word sheet (tap a word):** play *your* slice (from Offset/Duration) vs the reference word · phoneme table (expected vs heard) · tip.
-- **Modes:** Sentence → Slide (all sentences of a slide in one take) → Drill (weak items).
-- **Shadowing:** play reference, then auto-start recording.
-- **Drill queue:** weak items ordered by low score + least recently practiced; uses script sentences containing the word, or Gemini-generated drill sentences.
+There are no speech measurements (pace, pauses, fillers, scores).
 
-### 5.6 Progress
-- **Dashboard:** Pronunciation score trend (daily avg) · Accuracy / Fluency / Prosody lines · minutes practiced per week · weakest sounds (phoneme avg accuracy) · weakest words · mastered count · Azure usage meter (minutes this month / cap).
-- **Weak item rule:** after each attempt, every word with accuracy < 70 or `ErrorType` Mispronunciation/Omission is upserted (occurrences + 1, rolling average, last 5 scores); insertions are skipped. A good score on a word that is already weak is recorded too. An item becomes `mastered` when its last 3 scores are ≥ 85. Counted once per attempt, so a re-saved assessment does not count twice.
-- Phoneme stats come from `word_results.phonemes` via a SQL view.
+### 5.6 AI feedback & Corrections
+- **Request:** a button in the report's AI section, after a one-time privacy notice (§8). The `run_report` action saves the report in `attempts.ai_feedback`; the page reads it from there. A failure shows the function's Hebrew message and a retry, and keeps any report already saved. "New feedback" asks again.
+- **Content:** a short summary, up to 3 strengths, up to 3 delivery improvements (tone, energy, clarity, pace or structure, optionally tied to a slide), a plan for the next take, and **Corrections**.
+- **Corrections** are what a native US listener would notice: phrasing, grammar, word choice, pronunciation, stress, intonation. Up to 8, jarring ones first. Gemini judges by the audio, not the script. Each card shows what was said, how an American says it, and a Hebrew principle. Without the recording there are no Corrections.
+- **▶ You** plays the owner's own words. Gemini gives approximate start and end seconds; `anchorSpan` (`src/lib/anchor.ts`) widens them by 0.5 s each side and clamps to the take. Only those bytes are downloaded (an HTTP Range request on the WAV). Hidden when the recording was deleted or Gemini gave no time.
+- **▶ American** plays the corrected phrase in Gemini TTS (§7 `speak`), cached in `reference-audio/{user_id}/{sha256}.wav`, keyed by the hash of text, voice and rate, so a phrase is synthesized once. When the free quota is spent the button is disabled and the report says why.
 
-### 5.7 Presentation Mode — Presenter View (MVP)
+### 5.7 Coach tips
+The run report ends with tips for the next take from the owner's notebook (*Storytelling*: TED/TEDx talks on delivery, storytelling, humor, practice). They appear only in the run report.
 
-**Layout (desktop / tablet landscape).** Script column is always on the **right**, regardless of RTL UI.
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ 5/19 · This is Max     ● Record take   ⏱ 03:12 ▶ ⟲   Plan 4:00–6:00   16:35 │
-├───────────────────────────────────┬─────────────────────────────────┤
-│ NOW ON SCREEN                     │ NEXT · 6 · One developer built… │
-│                                   │ [ next slide thumbnail ]        │
-│ [ current slide, ~60% width ]     ├─────────────────────────────────┤
-│                                   │ SCRIPT (editable, memo level)   │
-│                                   │ …                               │
-│                                   │ ▍BEFORE YOU CLICK:              │
-│                                   │ ▍"So where does this come from?"│
-├───────────────────────────────────┴─────────────────────────────────┤
-│ ← Back  Next →  · Memo L0–L4 · Revert slide · Export script · keys  │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Catalog:** `coach_tips`, private to the owner: slug, category (`delivery`, `structure`, `humor`, `stage`, `practice`, `mindset`), triggers, a rotating flag, Hebrew title and body, an optional English example, and sources (speaker, talk, URL). Imported by Claude on request after the owner approves; the app never calls NotebookLM. The working copy is in `private/coach-tips/` (gitignored).
 
-**Header:** slide counter + title · "Record take" button · timer (total elapsed, Start/Pause/Reset) · planned window for the current slide · wall clock.
+**Triggers.** The contract (`supabase/functions/ai/contract.ts`) names 21; each tip lists the triggers it fits.
 
-**Next slide:** thumbnail + number + title of the upcoming slide, so the transition is never a surprise.
-
-**Transition line ("Before you click"):** one bridge sentence per slide that leads into the next slide, shown highlighted at the bottom of the script (`slides.transition_line`). Editable like the script; AI suggests one when drafting (Sprint 3).
-
-**Timer & planned windows:**
-- Planned duration per slide = script word count ÷ 140 WPM (at least 10 s per slide), scaled so the total equals `lectures.target_minutes`. Manual override: `slides.planned_seconds` (set on the lecture page, m:ss).
-- Planned window = cumulative start–end for the slide (e.g. `Plan: 4:00–6:00`).
-- Status color on the timer: green inside the window · amber up to 15 s past the end · red beyond · blue "ahead" when leaving a slide before its window starts.
-
-**Inline editing:**
-- Click the script (or press E) to edit; Esc or click outside saves (debounced autosave).
-- On save, the slide script is re-segmented into `sentences` (`resegment`, which keeps the sentence editor's segmentation where the text is unchanged; `save_slide_script` RPC); unchanged sentences keep their ids so cached reference audio survives. A sentence edited in place keeps its id while it is still similar, and its audio is cleared. Line breaks are kept in `sentences.starts_paragraph`.
-- "Revert slide" restores the slide's script as it was when the presenter view opened.
-- "Export script" downloads a `.md` with every slide: title, script, transition line.
-
-**Keyboard & clicker:** → / Space / PgDn next · ← / PgUp back · Home / End first/last · T start/pause timer · R start/stop take · M cycle memorization level · P peek · E edit · Esc exit edit / end take. Clickers send PgDn/PgUp. A hint bar shows the shortcuts.
-
-**Phone:** portrait → slide top, script bottom, next slide via swipe; landscape → side by side. Swipe left/right to navigate.
-
-**Memorization levels** (per slide, remembered): L0 full text · L1 every 3rd word blanked · L2 first letters only · L3 keywords only (3–6, chosen by Gemini, cached) · L4 no script. "Peek" shows the full text briefly. L3's keywords are saved in `slides.keywords` and asked for again when an edit removes one of them; until they arrive, or when Gemini fails, L3 shows first letters with the reason and a retry.
-
-**Slides source:** the owner uploads a PDF export of the deck; the browser renders each page with PDF.js at 1600 px (WebP where the browser encodes it, else PNG). Without images the view shows the slide title and text.
-
-**Full-run rehearsal ("Record take"):** starts the timer and the recording together; every slide change is timestamped on the audio clock. Stop (R) or Esc ends the take → upload → report. The recording is then assessed with continuous recognition (the concatenated script as reference text), after the take rather than live, so a take survives an Azure failure or an exhausted quota and can be re-assessed while its recording is kept (the newest 10 takes, §6). A take stops by itself just under the 50 MB upload limit (16 kHz mono WAV ≈ 26 minutes).
-
-**Run report** (a page per take, listed in the lecture's run history): total time vs target · time per slide vs planned window · WPM per slide (target band 130–160) · fillers per minute · long pauses · script coverage (omissions/insertions) · prosody/monotone flags · weakest words · Gemini delivery feedback (tone, energy, clarity) · **Corrections** (below).
-
-**Corrections — "what sounds off to an American ear"**
-- Source: Gemini **listens to the full-run audio** and flags whatever would sound wrong or unnatural to a native US listener: phrasing, grammar, word choice, pronunciation, stress, intonation. It judges by what it hears, not by the script or the transcript.
-- Up to 8 items, ordered by how jarring they are.
-- Card per item (phone: stacked; desktop: side by side):
-```
- 1 · Phrasing · Jarring
- ┌ What you said ─────────────┐ ┌ How Americans say it ──────┐
- │ to put AI into work        │ │ put AI to work             │
- │ ▶ You                      │ │ ▶ American                 │
- └────────────────────────────┘ └────────────────────────────┘
- Principle (Hebrew): direct translation mixes "put to work" and "put into practice".
-```
-- **▶ You:** plays the user's own audio slice. Anchoring: fuzzy-match `you_said_en` against Azure's word timeline within ±3 s of Gemini's approximate time; on a match (≥ 0.6) use Azure offsets + 150 ms padding, otherwise Gemini's times ± 0.5 s. Only the slice's bytes are downloaded (an HTTP Range request on the 16 kHz WAV). Hidden once the take's recording is deleted (§6), or when Gemini gave no time.
-- **▶ American:** Gemini TTS of `american_en` (`speak` action, §5.2 Plan B), cached in `reference-audio/{user_id}/{sha256}.wav` (the §5.2 key). If the free quota is spent the button is disabled and the report says why once.
-- Each correction is saved with the take so "Practice this" can reuse it later (Sprint 4).
-
-**Getting the AI feedback:** the report's AI section asks for it with a button, after the one-time privacy notice (§9). The `ai` function saves the report in `attempts.ai_feedback`, and the page reads it from there. A failure shows the function's message and a retry, and keeps any report already saved; the rest of the report never waits for Gemini. "New feedback" asks again, e.g. after the assessment adds its measurements.
-
-Long audio for Gemini: upload via the Gemini Files API in one call, with slide-change timestamps in the prompt (check current size and token limits; fallback: split per slide).
-
-### 5.8 Coach Tips (from the owner's NotebookLM notebook)
-
-The run report ends with **"Tips for the next take"**: 2–3 tips grounded in the owner's NotebookLM notebook (today: *Storytelling*, 8 TED/TEDx talks on delivery, storytelling, humor, self-introduction and practice). Tips appear only in the run report.
-
-**Catalog:** `coach_tips` (§6), private to the owner. A tip has a slug, a category (`delivery` · `structure` · `humor` · `stage` · `practice` · `mindset`), triggers, a rotating flag, a Hebrew title and body, an optional English example (an original line, not a quote) and its sources (speaker, talk, URL). The first import has 44 tips; the working copy lives in `private/coach-tips/` (gitignored).
-
-**Import ("עדכן טיפים"):** done by Claude, not the app.
-1. Read the notebook with the NotebookLM CLI: the full text of each source, plus grounded questions per category.
-2. Distill the tips and check each one against its source text.
-3. Show the owner the changes.
-4. After approval, upsert by slug.
-
-The app never calls NotebookLM.
-
-**Triggers** (draft thresholds are kept with the catalog; calibrate them on real takes):
-
-| Detected from | Triggers |
+| Who detects | Triggers |
 |---|---|
-| Metrics (§5.3, §5.7) | `pace_fast` · `pace_slow` · `few_pauses` · `long_pauses` · `fillers` · `overtime` · `slide_overrun` · `long_intro` |
-| Azure / script alignment | `monotone` · `low_coverage` |
-| Transcript counts | `and_heavy` (many "and", few "but") · `low_you` (little direct address) |
-| Run history | `first_run` · `repeat_issue` · `many_issues` |
-| Gemini (listening) | `low_energy` · `flat_emotion` · `no_hook` · `no_key_point` · `no_story` · `weak_ending` |
+| Rules in the app (`src/lib/tips.ts`, from times and history) | `overtime` (total more than 10% over the target) · `slide_overrun` (a slide at least 15 s past its plan and marked long) · `long_intro` (first slide over 60 s) · `first_run` · `repeat_issue` (the previous take's top issue is back) · `many_issues` (4 or more measured issues; cannot fire while only three timing rules measure) |
+| Gemini, from listening | `low_energy` · `flat_emotion` · `no_hook` · `no_key_point` · `no_story` · `weak_ending` |
+| Gemini, speech habits it may also report | `pace_fast` · `pace_slow` · `few_pauses` · `long_pauses` · `fillers` · `monotone` · `and_heavy` · `low_you` |
 
-**Selection (rules, shown at once):** `selectTips(issues, catalog, recentSlugs)` is a pure, unit-tested function.
-1. Detect the issues and rank them by severity. Keep the top 3.
-2. Pick one tip per issue from the tips whose triggers match. Skip a tip shown in the last 5 takes when another one fits.
-3. Every card shows the measured evidence, e.g. "172 WPM on slides 4–6 (target 130–160)".
-4. With fewer than 3 issues, add one rotating tip labeled "עוד טיפ מהמחברת". These cover body language, humor and mindset, which the app does not measure.
+`low_coverage` exists in the contract but nothing detects it now. The thresholds are drafts, not calibrated on real takes.
 
-**AI layer:** `run_report` receives the selected tips (slug, trigger, evidence) and the catalog index (slug, title, triggers).
-- It anchors each selected tip to one moment in the take: the slide, the approximate time and what was said. It adds a personal Hebrew line.
-- It may add up to 2 tips for what only listening reveals (the Gemini triggers above). It uses a catalog slug when one fits. Otherwise the tip has `from_notebook: false` and is shown as "הצעה כללית, לא מהמחברת".
-- Unknown slugs are dropped.
+**Selection (`selectTips`, pure, unit-tested):** rank issues by severity; one tip per issue from the tips whose triggers match, at most 3; skip a tip shown in the last 5 takes when another fits; with fewer than 3, add one rotating tip labeled "עוד טיפ מהמחברת". Every rule tip carries its evidence in Hebrew (for example the slide's time against its plan).
 
-**Without Azure (Plan B, 2026-10-04):** the speech triggers (`pace_*`, `few_pauses`, `long_pauses`, `fillers`, `monotone`, `and_heavy`, `low_you`) have no measurement. For a take that is not assessed, Gemini may report them from listening (counted as its extras, evidence = the quoted moment, never a number). Once Azure scores the take, the rules own these triggers and Gemini's reports of them are dropped. `low_coverage` needs the assessment and is never reported by Gemini.
+**Where it runs:** the choice runs in the app when the report opens and is saved in `attempts.metrics.tips`. `run_report` reads those tips and the active catalog, and answers with `tips[]`: an anchor for each rule tip (slide, approximate time, the words said, one personal Hebrew line) plus at most 2 extras from listening. An extra uses a catalog slug when one fits; otherwise it has no slug, its own title and body, and is shown as "הצעה כללית, לא מהמחברת". Unknown slugs are dropped. Without the recording, only the rule tips are returned, with no anchors. Gemini's speech-habit reports carry no numbers, only the quoted moment.
 
-**Where it runs:** the rule choice (`src/lib/tips.ts`) runs in the app when the report opens and is saved in `attempts.metrics.tips` (`[{slug, trigger, evidence_he, slide}]`; `trigger` null marks the rotating tip). `run_report` reads those saved tips and the catalog index (`coach_tips`, active), and answers with `tips[]`: an anchor for each rule tip (same slug) plus at most 2 extras. The app shows the rule tips at once and merges Gemini's anchors and extras when the report exists. Drafted thresholds are in `THRESHOLDS` (`src/lib/tips.ts`).
-
-**Fallback:** if Gemini fails or its quota is used up, the rule tips stay, and the AI feedback's retry re-requests the AI layer. If the catalog is empty, only AI tips show, all labeled as general.
-
-**Card:** title · body · evidence chip · English example (LTR) · source link ("מתוך: speaker — talk", opens YouTube). Latin text inside Hebrew fields is wrapped LTR. The tips are saved with the take: rule tips in `attempts.metrics.tips`, AI tips in `attempts.ai_feedback.tips`.
+**Fallback:** if Gemini fails, the rule tips stay and the AI retry asks again. If the catalog is empty, only Gemini's general tips can show.
 
 ---
 
 ## 6. Data Model (Postgres)
 
-```sql
-create table lectures (
-  id            uuid primary key default gen_random_uuid(),
-  user_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  title         text not null,
-  audience      text,
-  target_minutes int,
-  pptx_path     text,
-  status        text not null default 'draft'
-                check (status in ('draft','practicing','ready','archived')),
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
+All tables have RLS (owner only). Storage buckets are private; the app uses signed URLs.
 
-create table slides (
-  id            uuid primary key default gen_random_uuid(),
-  lecture_id    uuid not null references lectures(id) on delete cascade,
-  position      int not null,
-  title         text,
-  source_text   text,        -- extracted from PPTX
-  source_notes  text,        -- PPTX speaker notes
-  intent_notes  text,        -- what the user wants to say (any language)
-  image_path    text,        -- rendered slide PNG
-  transition_line text,      -- "Before you click" bridge sentence
-  planned_seconds int,       -- manual override; null = computed
-  keywords      text[],      -- memorization level L3
-  memo_level    int not null default 0,
-  unique (lecture_id, position)
-);
+| Table | Used for |
+|-------|----------|
+| `lectures` | title, audience, `target_minutes`, `pptx_path`. |
+| `slides` | per lecture: `position`, `title`, `source_text`, `source_notes`, `intent_notes`, `image_path`, `transition_line`, `planned_seconds`, `keywords` (L3), `memo_level`. |
+| `sentences` | a slide's script: `text`, `position`, `starts_paragraph`. |
+| `attempts` | full-run takes (`mode = 'full_run'`): `reference_text`, `audio_path` (null after retention), `duration_sec`, `metrics` (timing + `tips`), `ai_feedback` (the Gemini report). |
+| `user_settings` | `send_audio_to_llm`, `privacy_ack`. A row is created for each new user. |
+| `coach_tips` | the tip catalog (§5.7). |
 
-create table sentences (
-  id               uuid primary key default gen_random_uuid(),
-  lecture_id       uuid not null references lectures(id) on delete cascade,
-  slide_id         uuid references slides(id) on delete cascade,
-  position         int not null,
-  text             text not null,
-  starts_paragraph boolean not null default false,  -- keeps the author's line breaks
-  original_text    text,     -- before "Americanize"
-  change_notes     jsonb,    -- [{from, to, reason_he}]
-  ref_voice        text,
-  ref_audio_path   text,
-  ref_audio_slow_path text,
-  ref_word_timings jsonb,    -- [{word, offset_ms, duration_ms}]
-  updated_at       timestamptz not null default now()
-);
+**RPCs:** `import_slides(p_lecture_id, p_slides)`, `save_slide_script(p_slide_id, p_sentences)`, `save_attempt(p)` (updates or inserts an attempt by its client-generated id), `ping()` (keep-awake).
 
-create table chat_messages (
-  id            uuid primary key default gen_random_uuid(),
-  lecture_id    uuid not null references lectures(id) on delete cascade,
-  slide_id      uuid references slides(id) on delete set null,
-  role          text not null check (role in ('user','assistant')),
-  content       text not null,
-  proposed_edit jsonb,       -- optional structured edit proposal
-  created_at    timestamptz not null default now()
-);
+**Buckets:** `recordings` (`{user_id}/{attempt_id}.wav`), `reference-audio` (`{user_id}/{sha256}.wav`), `pptx` (the uploaded deck), `slides` (`{user_id}/{lecture_id}/{n}-{version}.webp|png`).
 
-create table attempts (
-  id               uuid primary key default gen_random_uuid(),
-  user_id          uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  lecture_id       uuid references lectures(id) on delete set null,
-  slide_id         uuid references slides(id) on delete set null,
-  sentence_id      uuid references sentences(id) on delete set null,
-  mode             text not null check (mode in ('sentence','slide','drill','full_run','free')),
-  reference_text   text,
-  recognized_text  text,
-  audio_path       text,     -- null after retention cleanup
-  duration_sec     numeric not null,
-  pron_score numeric, accuracy numeric, fluency numeric,
-  completeness numeric, prosody numeric,
-  wpm numeric, filler_count int, long_pause_count int,
-  metrics          jsonb,    -- pauses, per-slide timings, etc.
-  azure_raw        jsonb,
-  ai_feedback      jsonb,
-  created_at       timestamptz not null default now()
-);
-
-create table word_results (
-  id          bigint generated always as identity primary key,
-  attempt_id  uuid not null references attempts(id) on delete cascade,
-  position    int not null,
-  word        text not null,
-  accuracy    numeric,
-  error_type  text,
-  offset_ms   int,
-  duration_ms int,
-  phonemes    jsonb           -- [{phoneme, accuracy, nbest:[{phoneme, score}]}]
-);
-
-create table weak_items (
-  id                uuid primary key default gen_random_uuid(),
-  user_id           uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  kind              text not null check (kind in ('word','phoneme')),
-  value             text not null,
-  occurrences       int not null default 0,
-  avg_accuracy      numeric,
-  recent_scores     numeric[] not null default '{}',  -- last 5
-  status            text not null default 'active' check (status in ('active','mastered')),
-  last_seen_at      timestamptz,
-  last_practiced_at timestamptz,
-  unique (user_id, kind, value)
-);
-
-create table user_settings (
-  user_id              uuid primary key default auth.uid() references auth.users(id) on delete cascade,
-  voice                text not null default 'en-US-AndrewNeural',
-  slow_rate            text not null default '-25%',
-  send_audio_to_llm    boolean not null default true,   -- needed for corrections; user can turn off
-  privacy_ack          boolean not null default false,
-  azure_minutes_cap    int not null default 300
-);
-
-create table coach_tips (                          -- §5.8, imported from NotebookLM
-  id            uuid primary key default gen_random_uuid(),
-  user_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  slug          text not null,
-  category      text not null
-                check (category in ('delivery','structure','humor','stage','practice','mindset')),
-  triggers      text[] not null default '{}',
-  rotating      boolean not null default false,    -- may fill the report without a trigger
-  title_he      text not null,
-  body_he       text not null,
-  example_en    text,
-  sources       jsonb not null default '[]',       -- [{speaker, title, event, url}]
-  active        boolean not null default true,
-  updated_at    timestamptz not null default now(),
-  unique (user_id, slug)
-);
-```
-
-**RLS:** enabled on every table. Tables with `user_id` → `user_id = auth.uid()`. Child tables (`slides`, `sentences`, `chat_messages`, `word_results`) → `exists` check against the owning `lectures` / `attempts` row.
-
-**Indexes:** `attempts(user_id, created_at desc)` · `word_results(attempt_id)` · `sentences(lecture_id, position)` · `slides(lecture_id, position)` · `weak_items(user_id, status)`.
-
-**Views:** `v_daily_progress` (avg scores per day) · `v_phoneme_stats` (avg accuracy per phoneme, last 30 days) · `v_month_usage` (sum of `duration_sec` this month).
-
-**RPC** (all `security invoker`):
-- `import_slides(p_lecture_id, p_slides jsonb)` — a new deck's slides and their first sentences, in one transaction.
-- `save_slide_script(p_slide_id, p_sentences jsonb)` — replaces a slide's sentences with an ordered list; an `id` keeps that sentence, `null` inserts one.
-- `save_attempt(payload jsonb)` — updates or inserts an attempt by its client-generated id, replaces its word results and upserts weak items, in one transaction. A take is saved in two calls: the recording and timing first, the assessment later.
-
-**Storage (all private, signed URLs):**
-- `recordings/{user_id}/{attempt_id}.wav`
-- `reference-audio/{user_id}/{sha256}.wav`
-- `pptx/{user_id}/{lecture_id}.pptx`
-- `slides/{user_id}/{lecture_id}/{n}-{version}.webp|png` (a new version per render, so a re-render never comes back from a stale cache)
-
-**Retention (free-tier storage):** WAV at 16 kHz mono ≈ 1.9 MB/min, so a 20-minute take is ≈ 38 MB against 1 GB of storage.
-- **Takes:** after each saved take (and after a lecture is deleted) the app keeps the recordings of the newest 10 full-run takes across the existing lectures and deletes every other take recording (older takes, takes of deleted lectures). The attempt, its scores and its report stay (`audio_path = null`). Files are deleted before the rows are cleared, so an interrupted cleanup finishes on the next take. A take discarded after a failed save also deletes its uploaded file.
-- **Sentence attempts (Sprint 4):** keep audio for the last 5 attempts per sentence.
+**Dormant, kept from the full plan:** the database was not changed by the lean-down and no migration was written. These stay empty and unused: tables `chat_messages`, `word_results`, `weak_items`; views `v_daily_progress`, `v_phoneme_stats`, `v_month_usage`; `attempts` columns `pron_score`, `accuracy`, `fluency`, `completeness`, `prosody`, `wpm`, `filler_count`, `long_pause_count`, `recognized_text`, `azure_raw`, `slide_id`, `sentence_id`; `sentences.ref_*`, `original_text`, `change_notes`; `user_settings.voice`, `slow_rate`, `azure_minutes_cap`; `lectures.status`. `save_attempt` still accepts the matching keys and word results.
 
 ---
 
-## 7. API Contracts (Edge Functions)
+## 7. The `ai` Edge Function
 
-All functions require the user's Supabase JWT, checked in code by `_shared/auth.ts` (functions deploy with `verify_jwt = false`; see Appendix B). Secrets via `supabase secrets set`.
+One function, `supabase/functions/ai`, with an action router. Request: `POST { action, payload }` with the user's JWT; response: the action's JSON. Every answer from Gemini is checked against a schema and normalized (`contract.ts`) before it is saved or returned. Calls retry up to twice (1 s, then 3 s) on 429 and 5xx. Any Gemini failure is a 503 with a Hebrew message; the app keeps what it has.
 
-### `azure-token`
-`GET` → `{ token, region, expiresAt }`
-Calls `https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken` with header `Ocp-Apim-Subscription-Key`. Token is valid ~10 minutes; the client refreshes at 9 minutes. Used for both assessment and TTS via `SpeechConfig.fromAuthorizationToken(token, region)`.
+| Action | Input | Output |
+|--------|-------|--------|
+| `run_report` | `attempt_id` of a `full_run` take | The report: summary, strengths (≤3), improvements (≤3), plan for the next take, corrections (≤8), tips (≤5), `heard_audio`, model and prompt version. Reads the attempt, the lecture, `user_settings.send_audio_to_llm` and the active catalog. The WAV goes to Gemini through the Files API only while the setting is on and the file exists. Saved in `attempts.ai_feedback`. |
+| `draft_script` | `slide_id`, optional `intent` (≤2000 chars) | `{ script_en, transition_line, notes_he, words, estimated_seconds, budget_seconds, saw_image, model, prompt_version }`. The slide image is sent inline when it is under 4 MiB. Nothing is saved. |
+| `americanize` | `text`, `transition_line` | `{ text_en, transition_line, changes: [{ from, to, reason_he }] (≤12), model, prompt_version }`. Each change must quote text that was sent. Nothing is saved. |
+| `keywords` | `slide_script` (≤6000 chars) | `{ keywords }`: up to 6, every word of each found in the script. |
+| `speak` | `text` (≤300 chars), optional `voice` | `{ audio_base64, mime_type }`: a WAV from Gemini TTS (Interactions API). Voice defaults to `Kore`; 8 prebuilt voices are accepted. The app caches the file. |
 
-### `ai`
-`POST { action, payload }` → JSON. One function with an action router.
-
-| Action | Payload | Returns |
-|--------|---------|---------|
-| `draft_script` | lecture meta, slide `{source_text, source_notes, intent_notes}`, `target_seconds` | `{ script_en, sentences[], notes_he }` |
-| `americanize` | `{ text, transition_line? }`: a slide's saved script (up to 6000 characters) and its bridge sentence | `{ text_en, transition_line, changes: [{from, to, reason_he}], model, prompt_version }`. Nothing is saved: English only, one paragraph per line, every `from` is in what was sent, at most 12 changes, none when the text came back the same. Runs on `GEMINI_LITE_MODEL` (`gemini-3.5-flash-lite`, free tier) when that secret is set, otherwise on `GEMINI_MODEL`; low thinking either way (with minimal, Flash-Lite returned every script unchanged). |
-| `chat` | lecture + slide context, history, message | `{ reply, proposed_edit? }` |
-| `feedback` | see §5.4 | feedback JSON (§5.4) |
-| `keywords` | `{ slide_script }` | `{ keywords[] }`: up to 6, each found in the script |
-| `draft_script` | `{ slide_id, intent? }`: the function reads the slide, its lecture, the other slides' scripts and the slide's image as the user; `intent` overrides `slides.intent_notes` | `{ script_en, transition_line, notes_he, words, estimated_seconds, budget_seconds, saw_image, model, prompt_version }`. Nothing is saved: English only, one paragraph per line, no bridge on the last slide. |
-| `speak` | `{ text, voice? }`: text up to 300 characters, voice one of a short list of Gemini voices | `{ audio_base64, mime_type }`: a WAV the app caches in Storage |
-| `run_report` | `{ attempt_id }`. The function reads the take as the user: script, slide timeline, metrics, scores, weak words, `send_audio_to_llm`; it uploads the recording to the Files API. Selected tips + catalog index join in Sprint 2b (§5.8). | The report, also saved in `attempts.ai_feedback`: `{ version, model, prompt_version, created_at, heard_audio, summary_he, strengths_he[], improvements[], next_session_plan_he, corrections[], tips[] }` (`tips[]` from Sprint 2b) |
-
-Implementation: Gemini REST with `system_instruction`, `responseMimeType: "application/json"` + `responseSchema`; model from `GEMINI_MODEL`; retry 429/5xx with exponential backoff (max 2 retries); on failure return `503 { message_he }`. Audio only when `user_settings.send_audio_to_llm = true` (without audio the report has no Corrections section). The function reads and writes as the calling user, so RLS applies. Every answer is checked before it is saved or returned (`ai/contract.ts`): known topics and categories, slides that exist, times inside the take, at most 3 strengths, 3 improvements and 8 corrections (jarring first). Prompts carry a `PROMPT_VERSION`, saved with each report.
-
-`improvements[]` item schema:
-```json
-{ "topic": "tone | energy | clarity | pace | structure", "text_he": "string", "slide": 5 }
-```
-`slide` is null when the point is about the whole take.
-
-`corrections[]` item schema:
-```json
-{
-  "category": "phrasing | grammar | word_choice | pronunciation | stress | intonation",
-  "severity": "jarring | minor",
-  "you_said_en": "to put AI into work",
-  "american_en": "put AI to work",
-  "principle_he": "string",
-  "slide": 5,
-  "approx_start_sec": 132.4,
-  "approx_end_sec": 134.1
-}
-```
-`approx_start_sec` / `approx_end_sec` are null when Gemini gave no usable time (no ▶ You then). A phrasing, grammar or word-choice correction whose American version has the same words is dropped; pronunciation, stress and intonation may repeat them.
-
-Prompt rule for corrections: "Listen as a native American listener. Quote exactly what was said. Flag only what a US listener would notice. Judge by the audio, not the script."
-
-`tips[]` item schema (§5.8; `title_he` and `body_he` only when `slug` is null):
-```json
-{
-  "slug": "pause-before-key",
-  "from_notebook": true,
-  "trigger": "pace_fast",
-  "slide": 5,
-  "approx_start_sec": 132.4,
-  "said_en": "and the valve was the real problem",
-  "personal_he": "string",
-  "example_en": "string",
-  "title_he": null,
-  "body_he": null
-}
-```
-Prompt rule for tips: "Anchor every tip to one moment you heard. Use only slugs from the catalog for notebook tips. Never present your own advice as coming from the notebook."
-
-Checks before saving (`reportTips` in `contract.ts`): the trigger is a known one; `personal_he` is not empty; a slug must be in the catalog and appears once; a tip with no slug needs its own `title_he` and `body_he` and is never `from_notebook`; extras (slugs that are not rule tips) are at most 2, need the recording, and only for triggers Gemini may report; `said_en` and `approx_start_sec` are null without the recording. `tips` is absent in reports saved before Sprint 2b.
+Unknown action: 400. Missing secrets: 500. The function deploys with `verify_jwt = false` and `requireUser()` (`_shared/auth.ts`) does the real check (§8).
 
 ---
 
-## 8. Prompts (initial drafts)
+## 8. Non-functional Requirements
 
-Store in `supabase/functions/ai/prompts/` and version them.
-
-**Coach (system):**
-> You are an American English presentation coach for a Hebrew-native engineer who presents technical topics. Write explanations in Hebrew. Write every English word, example, respelling and drill in English. Be concise, specific and honest; encourage without flattery. Use the Azure assessment data as ground truth — never invent errors that are not in the data. Report at most 3 issues, ordered by impact on intelligibility.
-
-**Known Hebrew-speaker patterns (include as context):** /θ/ /ð/ → t, d, s, z · /w/ vs /v/ · American /ɹ/ vs Hebrew uvular r · /ɪ/ vs /iː/ (ship/sheep) · /æ/ vs /ɛ/ · schwa and vowel reduction · wrong word stress · final consonant clusters · flap t (water, better) · dark l.
-
-**Americanize rules:** natural spoken style · contractions where natural · ≤ 20 words per sentence · remove Hebrew calques (e.g. "It's worth to check" → "It's worth checking"; "open the computer" → "turn on the computer") · keep technical terms exact · preserve the speaker's meaning · explain each change in Hebrew.
-
-**Script drafting rules:** write for the ear, not the eye · one idea per sentence · signpost transitions ("Now let's look at…") · fit the time budget at 140 WPM · avoid words that are hard for Hebrew speakers when a simpler synonym exists, unless it's a required technical term.
+- **Privacy:** a one-time notice, shown in the report's AI section before the first request (`user_settings.privacy_ack`), says the Gemini free tier may use submitted data and to avoid confidential material. The recording goes to Gemini by default (Corrections need it). A switch in Settings, "שליחת אודיו ל-Gemini", turns it off; the report then has no Corrections.
+- **Security:** no keys in the client (the Gemini key is a Supabase secret) · RLS on all tables · JWT checked on the function · signed URLs for audio and images.
+- **Never block the core flow:** the presenter, the recording and the slide times work without Gemini.
+- **i18n:** UI `dir="rtl"` Hebrew; English content in `dir="ltr" lang="en"` (the `En` component).
+- **Mobile:** mobile-first, checked at 390 px and on desktop. The microphone needs HTTPS and a user gesture. A PWA, with an offline banner; recording needs the network to save.
+- **Login:** the email carries a magic link (desktop) and a 6-digit code (the installed iOS PWA, where links open in Safari).
 
 ---
 
-## 9. Non-functional Requirements
+## 9. Free-Tier Budget
 
-- **Latency:** assessment result ≤ 3 s after stop for a ≤ 15 s sentence.
-- **Offline:** app shell cached; recording needs network — show a clear offline state.
-- **Privacy:** one-time notice that Gemini free tier may use submitted data; avoid confidential work content; full-run audio goes to Gemini by default (needed for Corrections); a settings toggle turns it off. The notice shows in the run report's AI section before the first request (`user_settings.privacy_ack`); the switch is in Settings.
-- **Security:** no keys in the client · RLS on all tables · JWT on all functions · signed URLs for audio.
-- **i18n:** UI `dir="rtl"` Hebrew; English content `dir="ltr" lang="en"`.
-- **Accessibility:** record button ≥ 64 px · shortcuts: R = record/stop, Space = play reference, ← / → = previous/next.
-- **Mobile:** HTTPS + user gesture for mic; verify mic inside the **installed** PWA on iPhone during Sprint 2.
+| Service | Free allowance | Use here | Guard |
+|---------|----------------|----------|-------|
+| Gemini API (free tier) | Per-model RPM / RPD limits, shown only in AI Studio; no billing account on the project | One call per feedback, draft, Americanize, L3 keywords or phrase voice | Retry with backoff, a retry button, Hebrew messages when the quota is spent |
+| Supabase (free) | 2 active projects · 500 MB database · 1 GB storage · 50 MB per upload · pauses after about 7 days without database activity | Audio is the main storage: about 38 MB for a 20-minute take | Keep the newest 10 recordings (§5.4); the `keep-supabase-awake` workflow calls `ping()` three times a day |
+| Gmail SMTP (login emails) | About 500 emails a day; Auth limit 30 an hour with custom SMTP | A few a week | — |
+| GitHub Pages | Free | Static hosting | — |
 
----
-
-## 10. Free-Tier Budget (verify all limits in Sprint 0)
-
-| Service | Free allowance (Sep 2026) | Expected use | Guard |
-|---------|---------------------------|--------------|-------|
-| Azure STT + Pronunciation Assessment (F0) | 5 audio hours/month · 1 concurrent · stops (no billing) at quota | ~10 s per sentence attempt → hundreds of attempts + a few full runs | usage meter; warn 80%, block 98% |
-| Azure Neural TTS (F0) | 0.5M characters/month | 15-min script ≈ 12k chars × 2 variants | hash cache |
-| Gemini API (free tier) | per-model RPM / RPD limits | 1 call per attempt | backoff + retry button |
-| Supabase (free) | project count, DB/storage caps, pause on inactivity | audio is the main storage | keep the newest 10 take recordings (§6) |
-| Gmail SMTP (login emails) | ~500 emails/day | a few per week | Auth rate limit 30/hour |
-| GitHub Pages | free | static hosting | — |
+**Verified limits and behavior:**
+- Supabase project `lecture-coach` (`gzppgmoegcsdtovcdkmy`, eu-central-1).
+- Edge Functions: the platform `verify_jwt` check does not understand this project's ES256 user sessions, so the function deploys with `verify_jwt = false` and validates the session itself.
+- The built-in email service rejects custom templates and sends 2 emails an hour, so login emails go through the owner's Gmail.
+- `supabase config push` writes every property `config.toml` declares; run `supabase config diff` first.
+- PDF.js: the modern build needs `Map.prototype.getOrInsertComputed`, which older Chromium and Safari lack, so the legacy build is used.
+- Storage CORS allows the `Range` header, so ▶ You downloads only its clip.
+- Gemini: the free-tier Flash model (`gemini-3.8-flash` at the time of writing) takes text, image, audio and PDF input. Files uploaded through the Files API are deleted by Google after 48 hours.
 
 ---
 
-## 11. Build Plan (Sprints)
+## 10. Testing
 
-For each sprint: plan → approval → build → demo checklist → update Status in `CLAUDE.md`.
+- **Vitest unit tests** (`npm run test`): the PPTX parser, run timing metrics, plan windows, memorization levels, tip detection and selection, `anchorSpan`, audio (WAV, resampling, slicing), script segmentation, word diff, retention, and the `ai` contract (answer checks, prompts).
+- **e2e** (`e2e/`, Playwright against the running dev server and an in-memory Supabase mock; a fake microphone feeds a tone; no login, nothing touches the real project). With `npm run dev` running, from `e2e/`:
 
-**MVP = Sprints 0–2:** presenter view + full-run recording + run report. Sentence-level drilling comes after.
+| Command | Checks |
+|---------|--------|
+| `npm run screens` | Every screen at 390 px and on desktop (the presenter also in phone landscape); fails on sideways scroll, page errors or unmocked requests. |
+| `npm run take` | A recorded take: saved attempt, WAV upload, slide timestamps, report, run history. |
+| `npm run retention` | Keeps the newest 10 recordings; cleanup of deleted lectures and failed saves. |
+| `npm run import -- <deck.pptx> [deck.pdf]` | Imports a real deck (test decks in `private/decks/`, gitignored). |
+| `npm run ai` | Mocked `ai`: privacy notice, report with Corrections, ▶ You and ▶ American, failure and retry, the audio switch, L3 keywords. |
+| `npm run tips` | Rule tips with evidence, Gemini anchors and extras, rotation, no section without a catalog. |
+| `npm run draft` / `npm run americanize` | The two script helpers on the lecture page. |
+| `npm run all` | `screens`, `take`, `retention`, `ai`, `tips`, `draft`, `americanize`. |
 
-### Sprint 0 — Setup
-**Prerequisites (user):** Azure account + Speech resource F0 · Gemini API key · Supabase project (new, or an existing one if the free project limit is reached) · GitHub repo. See Appendix A.
-**Tasks:** scaffold Vite + React + TS + Tailwind · RTL layout (bottom nav on mobile, sidebar on desktop) · Supabase client + magic-link auth · all migrations + RLS + views · GitHub Actions deploy to Pages · PWA manifest and icons · set secrets · `azure-token` function.
-**Acceptance:** login works on phone and desktop · deployed URL live · `azure-token` returns a token when logged in and 401 otherwise.
-
-### Sprint 1 — Lecture import + Presenter view (MVP 1/2)
-**Tasks:** lectures CRUD · PPTX import (order, text, speaker notes → initial script) tested on 2 real decks · slide images from a PDF export (PDF.js) · presenter view per §5.7: current + next slide, script on the right, transition line, timer with planned windows and status colors, inline edit / revert / export, shortcuts + clicker + swipe, memorization levels L0–L2 and L4 · phone portrait/landscape layouts.
-**Acceptance:** upload a real PPTX (+ its PDF export) → slides render → rehearse the whole deck (no recording yet) with timer, planned windows, next-slide preview, editing and memorization levels, on desktop and phone landscape.
-
-### Sprint 2 — Full-run recording + Run report (MVP 2/2)
-**Tasks:** AudioWorklet capture + WAV encoder · continuous pronunciation assessment with the concatenated script · slide-change timestamps · typed result parser + derived metrics (unit tests) · Storage upload + `save_attempt` (mode `full_run`) · `ai` function: `run_report` (audio via Files API, incl. corrections) + `keywords` (enables memorization L3) · basic TTS for correction phrases + cache · audio slicing with Azure/Gemini time anchoring · run report page per §5.7 incl. Corrections cards · run history per lecture · Azure usage meter · recording retention (newest 10 takes, §6) · short spike report: filler detection, iOS installed-PWA mic, prosody availability in the region, noise suppression on/off, accuracy of Gemini timestamps.
-**Acceptance:** rehearse a 10-slide deck end to end → report shows total and per-slide time vs planned windows, WPM, fillers, pauses, coverage, prosody, weakest words, AI feedback and Corrections cards where ▶ You and ▶ American both play the right phrase (or graceful fallback) · previous runs listed · tests pass.
-
-### Sprint 2b — Coach tips in the run report
-**Prerequisites:** Sprint 2 done · the owner has approved the tips draft (`private/coach-tips/`).
-**Tasks:** `coach_tips` migration + RLS · import the approved catalog · issue detection + `selectTips` (unit tests) · transcript counts ("and" / "but", "you") · `run_report` tips input and `tips[]` output with validation · tip cards per §5.8 (evidence, example, source link, general-tip label) · rotation over the last 5 takes · calibrate thresholds on 3+ real takes.
-**Acceptance:** a take with a clear issue (e.g. fast pace) shows the matching notebook tip with its evidence at once · Gemini anchors it to a moment · with Gemini off or failing, the rule tips still show · general tips are labeled · tests pass.
-
-### Sprint 3 — Script Studio + reference audio
-**Tasks:** slide intent notes · `ai` actions `draft_script` (script + transition line), `americanize`, `chat` · diff view with Hebrew reasons · sentence segmentation editor · TTS per sentence normal/slow + word highlighting (extends the Sprint 2 TTS) · voice setting.
-**Acceptance:** import a deck → AI drafts script and transition lines for all slides → refine via chat → every sentence has playable reference audio (normal and slow) → changes appear in the presenter view.
-
-### Sprint 4 — Sentence practice, AI feedback, progress
-**Tasks:** sentence practice (`recognizeOnceAsync`) + colored words + score chips · word sheet (phonemes, own-audio slice vs reference) · shadowing · `feedback` action + feedback card (Hebrew with LTR English) · "Practice this" links from the run report's weakest words · weak-items drill · progress dashboard (Recharts) · sentence audio retention (§6).
-**Acceptance:** sentence result in ≤ 3 s on iPhone (installed PWA) and desktop · feedback after each recording (or graceful fallback) · weak words update · dashboard shows trends across ≥ 3 days (seed data for dev).
-
-### Backlog (revisit as the app grows)
-Claude API as an alternative `LlmProvider` · compressed audio storage (Opus) · spaced-repetition scheduling for weak items · exportable progress report · self-hosted scoring on a VPS if Azure limits become a problem · automatic PPTX → images (LibreOffice on a VPS) if the PDF export step gets tedious.
+e2e uses a made-up tip catalog, never the real tips. Setup and details: `e2e/README.md`. CI runs typecheck, lint, tests and the build.
 
 ---
 
-## 12. Repository Structure
+## 11. Environment Variables
 
-```
-lecture-coach/
-├─ CLAUDE.md
-├─ docs/ARCHITECTURE.md
-├─ src/
-│  ├─ app/              # routes, layout, auth guard
-│  ├─ features/
-│  │  ├─ lectures/  script/  practice/  present/  progress/  settings/
-│  ├─ audio/            # capture worklet, WAV encoder, slicing
-│  ├─ speech/           # token client, assessment, TTS, result parser
-│  ├─ providers/        # SpeechProvider, LlmProvider + azure/gemini impl
-│  ├─ lib/              # supabase client, metrics, pptx parser
-│  └─ components/       # shared UI
-├─ public/              # icons, audio-worklet processor
-├─ supabase/
-│  ├─ migrations/
-│  └─ functions/ azure-token/ ai/
-├─ private/             # gitignored: coach-tips working copy (§5.8)
-└─ .github/workflows/deploy.yml
-```
+**Client (`.env.local`):** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (the publishable key). The same two are GitHub repository variables for the Pages build.
+
+**Supabase secrets** (`npx supabase secrets set KEY=value`): `GEMINI_API_KEY`, `GEMINI_MODEL`; optional `GEMINI_TTS_MODEL` (overrides the default TTS model `gemini-3.8-flash-tts`).
 
 ---
 
-## 13. Environment Variables
+## 12. Cut on 2026-11-10 and why
 
-**Client (`.env`):** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (publishable key).
+The owner decided to cut the app to the two jobs above and freeze it until after the lecture. Removed from the code:
+- **Azure Speech entirely:** pronunciation assessment, word and phoneme scores, WPM / pauses / fillers / coverage measurements, weak words, the usage meter and quota guard, the `azure-token` function and the Speech SDK. Signup had been blocked since 2026-10-01.
+- The practice and progress pages (placeholders), the `/present` picker page, the sentence editor, and the optional `GEMINI_LITE_MODEL`.
 
-**Supabase secrets:** `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `GEMINI_API_KEY`, `GEMINI_MODEL`, optional `GEMINI_LITE_MODEL` (faster model for `americanize`).
+Cancelled before being built: sentence practice, the word sheet, shadowing, drills, the progress dashboard, the per-attempt `feedback` action, the discussion chat, and reference audio per sentence.
 
----
-
-## 14. Open Items to Verify
-
-1. How Azure reports filler words / disfluencies (Sprint 2).
-2. Microphone inside the installed iOS PWA (Sprint 2).
-3. Prosody assessment support for en-US in the chosen Azure region (Sprint 0).
-4. Current Gemini free-tier models, limits and audio size limits (Sprint 0).
-5. Supabase free-tier limits: project count, storage, inactivity pausing (Sprint 0).
-6. Availability of the default voice in the region (Sprint 2).
-7. Accuracy of Gemini audio timestamps for correction slicing (Sprint 2).
-8. Thresholds for the tip triggers: calibrate on real takes (Sprint 2b).
+To bring any of it back: the full plan is in `docs/ARCHITECTURE-v1-full.md` and the matching code is at git tag `full-scope-v1`. The database still has the full plan's tables and columns (§6), so a restore needs no migration.
 
 ---
 
-## Appendix A — Account Setup (Sprint 0)
+## 13. Open Items to Verify Live
 
-Portal names change often; if a label differs, search for "Speech".
-
-**Azure Speech (F0)**
-1. Sign up at azure.microsoft.com (a card is required for identity verification).
-2. Portal → *Create a resource* → search **Speech** → *Create*.
-3. Fill in: subscription · new resource group `lecture-coach-rg` · region (one that supports pronunciation assessment with prosody for en-US) · name · **Pricing tier: Free F0**.
-4. After deployment → *Keys and Endpoint* → copy **Key 1** and **Region**.
-5. `supabase secrets set AZURE_SPEECH_KEY=... AZURE_SPEECH_REGION=...`
-6. If Azure later asks to upgrade the subscription, the F0 resource itself still does not bill — it only throttles at the quota.
-
-**Gemini**
-1. aistudio.google.com → *Get API key* → create a key.
-2. `supabase secrets set GEMINI_API_KEY=... GEMINI_MODEL=<current Flash model>`
-
-**Login emails (Gmail SMTP)**
-1. myaccount.google.com/apppasswords → create an app password named `Supabase lecture-coach`.
-2. Dashboard → *Authentication* → *Emails* → *SMTP Settings* → enable custom SMTP:
-   - host `smtp.gmail.com`, port `465`, minimum interval `60`;
-   - username and sender email: the owner's Gmail address;
-   - password: the app password.
-3. `supabase config diff` → review → `supabase config push` (sends the Hebrew templates from `supabase/templates/`).
-
----
-
-## Appendix B — Verified in Sprint 0 (September 2026)
-
-- **Supabase free plan:** 2 active projects · 500 MB database · 1 GB storage · **50 MB max per upload** · pauses after ~7 days without database activity → `keep-supabase-awake` workflow calls `public.ping()` three times a day (no emails). 1 GB holds about 25 recordings of a 20-minute take → the app keeps the newest 10 (§6, owner's choice, Sprint 2).
-- **Edge Functions auth:** the platform `verify_jwt` check lets the publishable key through and does not understand this project's ES256 user sessions. Functions deploy with `verify_jwt = false` and call `requireUser()` (`supabase/functions/_shared/auth.ts`), which validates the session with Supabase Auth.
-- **Login email:** carries both a magic link (desktop) and a 6-digit code (installed iOS PWA, where links open in Safari instead of the app). It is sent through the owner's Gmail (custom SMTP). On the free plan, the built-in email service rejects custom templates, and it sends only 2 emails per hour. With custom SMTP, the limit is 30 per hour.
-- **`config push`:** writes every property `config.toml` declares, email template bodies included. Template defaults that differ from the hosted project are commented out and marked "Hosted default". SMTP stays undeclared, because its password lives only in the Dashboard. Run `supabase config diff` before every push.
-- **Azure pronunciation assessment:** audio longer than 30 s needs continuous mode, where `enableMiscue` is not supported → Sprint 2 computes omissions/insertions by aligning recognized words with the script. Prosody is en-US only (SDK ≥ 1.35).
-- **PDF.js:** the modern build needs `Map.prototype.getOrInsertComputed`, which older Chromium (141) and Safari lack → the app uses the legacy build (Sprint 1).
-- **Storage byte ranges:** the Storage CORS preflight allows the `Range` header, so ▶ You downloads only the clip it plays (Sprint 2).
-- **Gemini:** latest free-tier Flash model is `gemini-3.8-flash` (text/image/video/audio/PDF input, 1M-token context). Rate limits are per account and shown only in AI Studio.
+None of these has been verified.
+1. A full-length take through the Gemini Files API on the free tier (size, token and time limits).
+2. Accuracy of Gemini's timestamps for the ▶ You slice (±0.5 s margin).
+3. `speak` on the free tier (quota and model availability).
+4. `keywords` for memorization level L3.
+5. Coach tips and their anchors on a real take, and the thresholds in `THRESHOLDS` (`src/lib/tips.ts`).
+6. Login, and the microphone inside the installed PWA, on the phone.
