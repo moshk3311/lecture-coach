@@ -44,7 +44,10 @@ export function DeckPicker({ value, onChange, disabled = false, acceptPdf = fals
       return
     }
     if (!pptx) {
-      if (pdf && acceptPdf) {
+      if (pdf && acceptPdf && value) {
+        // The deck is already picked: this PDF goes with it.
+        onChange({ ...value, pdf })
+      } else if (pdf && acceptPdf) {
         setPendingPdf(pdf)
         setHint('קיבלתי את ה-PDF. עכשיו בחר גם את קובץ ה-PowerPoint.')
       } else if (pdf) {
