@@ -81,7 +81,7 @@ A personal app for one person who is preparing to give a lecture in English. It 
 ### 5.1 Lectures & import
 - **Lectures page** lists lectures; "new lecture" takes title, audience, target duration (minutes) and the deck. A lecture can be deleted for good (slides, scripts, images and recordings go with it).
 - **PPTX import (client-side, JSZip):** slide order from `ppt/presentation.xml` and its rels; slide text from the `<a:t>` runs; speaker notes from `ppt/notesSlides`. Hidden slides are skipped. Decks without placeholders get the short text in the largest font as title; footers repeated on most slides and bare slide numbers are dropped. Speaker notes become each slide's first script, split into sentences. Saved in one transaction by the `import_slides` RPC. The original file goes to the `pptx` bucket.
-- **Slide images:** the owner adds a PDF export; PDF.js (legacy build, §9) renders page n as slide n at 1600 px width, as WebP where the browser encodes it, else PNG, into the `slides` bucket. A re-render uses a new file name (no stale cache) and removes the old files. Without images the presenter shows the slide title and text.
+- **Slide images:** the owner adds a PDF export (on the new-lecture page it can be picked or dropped together with the PPTX; the files are sorted by extension); PDF.js (legacy build, §9) renders page n as slide n at 1600 px width, as WebP where the browser encodes it, else PNG, into the `slides` bucket. A re-render uses a new file name (no stale cache) and removes the old files. Without images the presenter shows the slide title and text.
 - **Planned time:** each slide may carry a manual `planned_seconds` (set on the lecture page as m:ss); otherwise it is computed (§5.3).
 
 ### 5.2 Script help (not extended)

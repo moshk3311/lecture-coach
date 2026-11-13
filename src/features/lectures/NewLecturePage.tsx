@@ -29,7 +29,8 @@ export function NewLecturePage() {
 
   function pick(next: PickedDeck | null) {
     setPicked(next)
-    if (!next) setPdf(null)
+    // A PDF dropped with the deck comes with it; a new or removed deck drops the old PDF.
+    setPdf(next?.pdf ?? null)
     if (next && !values.title.trim()) setValues({ ...values, title: suggestTitle(next.file.name, next.deck) })
   }
 
@@ -88,7 +89,7 @@ export function NewLecturePage() {
               <p className="mb-1.5 text-sm font-medium">
                 מצגת <span className="font-normal text-ink-faint">(אפשר גם אחר כך)</span>
               </p>
-              <DeckPicker value={picked} onChange={pick} disabled={step !== 'idle'} />
+              <DeckPicker value={picked} onChange={pick} disabled={step !== 'idle'} acceptPdf />
               {picked ? (
                 <div className="mt-4">
                   <p className="mb-1.5 text-sm font-medium">
