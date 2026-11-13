@@ -1,8 +1,8 @@
 import { En } from '../../components/En'
 import { scoreBand, type ScoreBand } from '../../lib/scoreBands'
 
-// A sample result on a dark "stage": what the app gives you after every take.
-// Colors are fixed (the stage is always dark), matching the dark-theme score bands.
+// A sample result on a deep ICL-blue "stage": what the app gives you after every take.
+// Colors are fixed (the stage is always dark), matching the dark-theme status colors.
 
 const WORDS: { text: string; score: number }[] = [
   { text: 'Today', score: 94 },
@@ -24,14 +24,14 @@ const SCORES: { name: string; value: number }[] = [
 ]
 
 const UNDERLINE: Record<ScoreBand, string> = {
-  good: 'decoration-[#6fcf97]',
-  warn: 'decoration-[#e6b35a]',
+  good: 'decoration-[#5fd08a]',
+  warn: 'decoration-[#f3b01d]',
   bad: 'decoration-[#f08a7e]',
 }
 
 const TEXT: Record<ScoreBand, string> = {
-  good: 'text-[#6fcf97]',
-  warn: 'text-[#e6b35a]',
+  good: 'text-[#5fd08a]',
+  warn: 'text-[#f3b01d]',
   bad: 'text-[#f08a7e]',
 }
 
@@ -39,15 +39,15 @@ export function StagePreview() {
   return (
     <section
       aria-label="דוגמה לתוצאה"
-      className="relative flex flex-col justify-center overflow-hidden bg-[#1a1916] px-6 py-12 text-[#f3efe6] sm:px-12 lg:min-h-dvh"
+      className="relative flex flex-col justify-center overflow-hidden bg-[#012760] px-6 py-12 text-[#f8fafd] sm:px-12 lg:min-h-dvh"
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_65%_at_35%_0%,rgba(255,236,200,0.17),transparent_62%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_65%_at_35%_0%,rgba(81,202,222,0.16),transparent_62%)]"
       />
       <div className="relative mx-auto w-full max-w-xl">
-        <En as="p" className="flex items-center gap-2 font-mono text-[11px] tracking-[0.22em] text-[#b9b3a5] uppercase">
-          <span className="h-2 w-2 animate-pulse-live rounded-full bg-[#ff6a57]" aria-hidden="true" />
+        <En as="p" className="flex items-center gap-2 font-mono text-[11px] tracking-[0.22em] text-[#9fb3cf] uppercase">
+          <span className="h-2 w-2 animate-pulse-live rounded-full bg-[#ff6a5e]" aria-hidden="true" />
           Rec · Take 3 · 00:04
         </En>
 
@@ -67,10 +67,10 @@ export function StagePreview() {
         </En>
 
         <div className="mt-9 rounded-xl border border-white/10 bg-white/[0.04] p-4">
-          <En as="p" className="font-mono text-sm text-[#d8d2c4]">
+          <En as="p" className="font-mono text-sm text-[#c9d6e8]">
             <span className="text-[#f08a7e]">through</span> /θruː/ · heard /truː/
           </En>
-          <p className="mt-2 text-[15px] leading-relaxed text-[#d8d2c4]">
+          <p className="mt-2 text-[15px] leading-relaxed text-[#c9d6e8]">
             הצליל θ יצא t. שים את קצה הלשון בין השיניים ונשוף אוויר.
           </p>
         </div>
@@ -78,13 +78,13 @@ export function StagePreview() {
         <En as="dl" className="mt-6 grid grid-cols-4 gap-2 text-center">
           {SCORES.map(({ name, value }) => (
             <div key={name} className="rounded-lg border border-white/10 px-1 py-2.5">
-              <dt className="font-mono text-[10px] tracking-wider text-[#9d978a] uppercase">{name}</dt>
+              <dt className="font-mono text-[10px] tracking-wider text-[#9fb3cf] uppercase">{name}</dt>
               <dd className={`mt-1 font-mono text-xl ${TEXT[scoreBand(value)]}`}>{value}</dd>
             </div>
           ))}
         </En>
 
-        <p className="mt-6 text-sm text-[#9d978a]">דוגמה: ציון לכל מילה וצליל, והסבר בעברית.</p>
+        <p className="mt-6 text-sm text-[#9fb3cf]">דוגמה: ציון לכל מילה וצליל, והסבר בעברית.</p>
       </div>
     </section>
   )

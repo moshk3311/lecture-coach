@@ -2,8 +2,9 @@
 @import "./styles/fonts.css";
 
 /*
-  Visual language: a rehearsal score on warm paper. Royal-ink accent for actions,
-  a live-red light for recording, and the spec's green / amber / red bands for scores.
+  Visual language: the ICL safety-deck palette (~/ai/claude/safety pptx/palette).
+  Light paper and deep ink, ICL blue for actions, traffic-light colors for status only.
+  Dark mode: ICL navy surfaces with a teal accent.
 */
 @theme {
   --font-sans: "IBM Plex Sans Hebrew", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -11,22 +12,22 @@
   --font-en: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  --color-paper: #f5f2eb;
-  --color-card: #fbfaf6;
-  --color-ink: #1d1b17;
-  --color-ink-soft: #5d5a52;
-  --color-ink-faint: #8f8b80;
-  --color-rule: #e3ddd0;
-  --color-accent: #2c43c9;
-  --color-accent-soft: #e6e9fa;
-  --color-on-accent: #ffffff;
-  --color-live: #d4412f;
-  --color-good: #1f7a4a;
-  --color-good-soft: #e2f1e7;
-  --color-warn: #9a5f0c;
-  --color-warn-soft: #f7ecd6;
-  --color-bad: #b63a30;
-  --color-bad-soft: #f8e3e0;
+  --color-paper: #eaf1f8;
+  --color-card: #f8fafd;
+  --color-ink: #0e1b2d;
+  --color-ink-soft: #3e4858;
+  --color-ink-faint: #828b99;
+  --color-rule: #d0d8e1;
+  --color-accent: #00499c;
+  --color-accent-soft: #dce7f5;
+  --color-on-accent: #f8fafd;
+  --color-live: #d33b36;
+  --color-good: #12733a;
+  --color-good-soft: #e1f2e6;
+  --color-warn: #8a5a00;
+  --color-warn-soft: #faefcf;
+  --color-bad: #b8302b;
+  --color-bad-soft: #f8e2e0;
 
   --animate-rise: rise 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
   --animate-pulse-live: pulse-live 1.6s ease-in-out infinite;
@@ -55,22 +56,22 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-paper: #131210;
-    --color-card: #1c1b18;
-    --color-ink: #ece8de;
-    --color-ink-soft: #aba699;
-    --color-ink-faint: #7b776c;
-    --color-rule: #2d2b26;
-    --color-accent: #93a3ff;
-    --color-accent-soft: #232845;
-    --color-on-accent: #10132b;
-    --color-live: #ff6a57;
-    --color-good: #6fcf97;
-    --color-good-soft: #17291f;
-    --color-warn: #e6b35a;
-    --color-warn-soft: #2e2413;
+    --color-paper: #0a1830;
+    --color-card: #102446;
+    --color-ink: #f8fafd;
+    --color-ink-soft: #b7c3d3;
+    --color-ink-faint: #8593a8;
+    --color-rule: #24385a;
+    --color-accent: #51cade;
+    --color-accent-soft: #12385a;
+    --color-on-accent: #012760;
+    --color-live: #ff6a5e;
+    --color-good: #5fd08a;
+    --color-good-soft: #13322a;
+    --color-warn: #f3b01d;
+    --color-warn-soft: #33290f;
     --color-bad: #f08a7e;
-    --color-bad-soft: #321a17;
+    --color-bad-soft: #3a1d24;
   }
 }
 

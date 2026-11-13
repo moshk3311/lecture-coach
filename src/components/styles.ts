@@ -12,7 +12,7 @@ export const buttonStyles = {
 }
 
 export const cardStyles =
-  'rounded-2xl border border-rule bg-card shadow-[0_1px_2px_rgb(29_27_23/0.04),0_12px_32px_-18px_rgb(29_27_23/0.18)]'
+  'rounded-2xl border border-rule bg-card shadow-[0_1px_2px_rgb(14_27_45/0.04),0_12px_32px_-18px_rgb(14_27_45/0.18)]'
 
 export const inputStyles =
   'h-12 w-full rounded-lg border border-rule bg-card px-4 text-[16px] text-ink placeholder:text-ink-faint ' +

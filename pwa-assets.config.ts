@@ -2,7 +2,7 @@
 //   npx @vite-pwa/assets-generator@1 --config pwa-assets.config.ts
 import { defineConfig, minimal2023Preset } from '@vite-pwa/assets-generator/config'
 
-const INK = '#2c43c9'
+const INK = '#00499c'
 
 export default defineConfig({
   preset: {

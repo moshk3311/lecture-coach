@@ -266,7 +266,7 @@ function PresenterView({ deck }: { deck: LectureDeck }) {
               imageUrl={imageUrl(slide.image_path)}
               title={slide.title}
               text={slide.source_text}
-              className="w-full shadow-[0_12px_32px_-18px_rgb(29_27_23/0.35)] landscape:w-[min(100cqw,calc(100cqh*16/9))]"
+              className="w-full shadow-[0_12px_32px_-18px_rgb(14_27_45/0.35)] landscape:w-[min(100cqw,calc(100cqh*16/9))]"
             />
           </div>
         </section>

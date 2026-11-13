@@ -7,7 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 // GitHub Pages serves the app from /<repo>/; dev runs from the root.
 const PAGES_BASE = process.env.BASE_PATH ?? '/lecture-coach/'
 
-const LIGHT_BG = '#f7f6f3'
+const LIGHT_BG = '#eaf1f8'
 
 export default defineConfig(({ command }) => {
   const base = command === 'build' ? PAGES_BASE : '/'
